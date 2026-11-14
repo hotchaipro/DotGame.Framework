@@ -203,12 +203,63 @@ export function precompressedUrl(url) {
 
 let reportedHostSetup = false;
 
+function reportHostSetup(message) {
+    if (!reportedHostSetup) {
+        reportedHostSetup = true;
+        console.error(message);
+    }
+}
+
+/**
+ * The body of a wasm that came with no encoding: the module itself, if a CDN decoded the copy for
+ * this browser, which passes on as it arrives; otherwise the copy's Brotli bytes, which the host
+ * didn't say it sent, and the body fails with `message`.
+ */
+function requireWasmModule(body, message) {
+    let head = new Uint8Array(0);
+    let checked = false;
+    return body.pipeThrough(new TransformStream({
+        transform(chunk, controller) {
+            if (checked) {
+                controller.enqueue(chunk);
+                return;
+            }
+            const joined = new Uint8Array(head.length + chunk.length);
+            joined.set(head);
+            joined.set(chunk, head.length);
+            head = joined;
+            if (head.length < 4) {
+                return;
+            }
+            checked = true;
+            if ((head[0] !== 0x00) || (head[1] !== 0x61) || (head[2] !== 0x73) || (head[3] !== 0x6d)) {
+                reportHostSetup(message);
+                controller.error(new Error(message));
+                return;
+            }
+            controller.enqueue(head);
+        },
+        flush(controller) {
+            if (!checked) {
+                reportHostSetup(message);
+                controller.error(new Error(message));
+            }
+        },
+    }));
+}
+
 /**
  * The response for a file fetched as its precompressed copy, as if it were the file: decoded, with
  * the file's own type, so a wasm still compiles as it arrives. A Brotli copy the host sent without
  * Content-Encoding: br can't be decoded here: the host isn't set up, which stops the game with an
  * error saying so (docs/guide/platforms.md, "Hosting"). A gzip copy (the fallback) that the host
  * didn't send as gzip is decoded here, natively.
+ *
+ * A Brotli copy can also arrive decoded, or in another encoding the browser decodes: a CDN sends
+ * a browser (or a proxy) that doesn't accept Brotli the file itself, plain or as gzip, from the
+ * copy (Cloudflare does). Any other encoding the response names is that, so the body is the file.
+ * One that names none is either: a wasm is checked for WebAssembly's magic number; any other file
+ * is taken as the host's Brotli bytes.
  */
 export function readPrecompressed(response, originalUrl) {
     if (!response.ok) {
@@ -218,16 +269,17 @@ export function readPrecompressed(response, originalUrl) {
     const encoding = (response.headers.get('Content-Encoding') || '').toLowerCase();
     let body = response.body;
     if (precompression.format === 'br') {
-        if (encoding !== 'br') {
+        if ((encoding === '') || (encoding === 'identity')) {
             const message = `The host sent '${response.url || originalUrl}' without the header Content-Encoding: br, so the browser can't decode it. `
                 + 'A DotGame web publish fetches a Brotli copy of each file, and the host must send those with that header '
                 + '(see the DotGame guide, Platforms, "Hosting", for each host\'s setup), or the publish can set DotGameWebDecompressionFallback '
                 + 'to true, to fetch gzip copies the page decodes itself, more slowly.';
-            if (!reportedHostSetup) {
-                reportedHostSetup = true;
-                console.error(message);
+            if (extensionOf(originalUrl) === '.wasm') {
+                body = requireWasmModule(body, message);
+            } else {
+                reportHostSetup(message);
+                throw new Error(message);
             }
-            throw new Error(message);
         }
     } else if (encoding !== 'gzip') {
         body = body.pipeThrough(new DecompressionStream('gzip'));
