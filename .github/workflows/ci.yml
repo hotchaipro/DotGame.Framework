@@ -69,13 +69,17 @@ jobs:
           tools="$GITHUB_WORKSPACE/artifacts/tools/${{ matrix.rid }}/tools"
           if [ "$RUNNER_OS" = Windows ]; then tools=$(cygpath -w "$tools"); fi
           echo "$tools" >> "$GITHUB_PATH"
-      # Linux has no iOS workload, so it builds everything else
+      # macOS builds every project. Windows builds all but the iOS sample, whose AAC sounds only macOS's
+      # encoder makes, and Linux, which has no iOS workload, all but the iOS projects.
       # Without the Platform that the MSVC setup sets for the native tools (x64), which would pick a
       # solution configuration that doesn't exist
       - name: Build
-        if: runner.os != 'Linux'
+        if: runner.os == 'macOS'
+        run: dotnet build DotGame.Framework.slnx
+      - name: Build
+        if: runner.os == 'Windows'
         shell: bash
-        run: unset Platform; dotnet build DotGame.Framework.slnx
+        run: unset Platform; dotnet sln DotGame.Framework.slnx list | grep '\.csproj$' | grep -v 'Sample\.iOS\.csproj$' | xargs -n1 dotnet build
       - name: Build
         if: runner.os == 'Linux'
         shell: bash
