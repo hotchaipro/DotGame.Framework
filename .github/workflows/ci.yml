@@ -3,14 +3,12 @@ name: CI
 # Builds every project (DotGame.Framework.slnx) and runs the tests, on Windows, Linux and macOS, with
 # the content pipeline's pinned tools (packaging/tool-sources.json).
 #
-# Run by hand only until the repository is public. Then turn on its push and pull request triggers:
-#
-#   on:
-#     push:
-#       branches: [main]
-#     pull_request:
+# Runs on every push to main and every pull request, and by hand.
 
 on:
+  push:
+    branches: [main]
+  pull_request:
   workflow_dispatch:
 
 permissions:
