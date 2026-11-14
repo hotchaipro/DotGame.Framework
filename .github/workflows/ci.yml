@@ -79,7 +79,8 @@ jobs:
       - name: Build
         if: runner.os == 'Windows'
         shell: bash
-        run: unset Platform; dotnet sln DotGame.Framework.slnx list | grep '\.csproj$' | grep -v 'Sample\.iOS\.csproj$' | xargs -n1 dotnet build
+        # (with forward slashes, since xargs reads backslashes as escapes)
+        run: unset Platform; dotnet sln DotGame.Framework.slnx list | tr -d '\015' | tr '\134' / | grep '\.csproj$' | grep -v 'Sample\.iOS\.csproj$' | xargs -n1 dotnet build
       - name: Build
         if: runner.os == 'Linux'
         shell: bash
