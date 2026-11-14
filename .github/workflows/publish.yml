@@ -14,6 +14,9 @@ name: Publish
 #     checking that the version isn't on nuget.org already.
 #   - Each build machine builds the samples' and the template's desktop and web heads from the packages,
 #     with no tool installed (packaging/test-packages.sh).
+#   - Linux and Windows machines with only the .NET SDK follow the guide: its getting-started game, then
+#     the template's desktop head, built and published, and its web and Android heads, installing the
+#     Android SDK and a JDK as the guide says (packaging/test-clean.ps1).
 #   - Then, if "Publish" is ticked, the push, in the nuget environment, and a draft GitHub release for
 #     the version, tagged vVERSION at the commit it published, a prerelease if the version has a suffix.
 #     Write its notes and publish it by hand: the tag is made when the draft is published. If the push
@@ -169,8 +172,44 @@ jobs:
         shell: bash
         run: packaging/test-packages.sh desktop webgl
 
+  # The guide's steps on machines with only the .NET SDK: Microsoft's SDK images, with no JDK, Android
+  # SDK, Python or compilers (packaging/test-clean.ps1). iOS needs a Mac with Xcode, which no container has.
+  clean-linux:
+    needs: [tools, packages]
+    runs-on: ubuntu-latest
+    name: clean linux-x64
+    container: mcr.microsoft.com/dotnet/sdk:11.0
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: '*'
+          path: feed
+          merge-multiple: true
+      - name: The guide's steps
+        run: pwsh packaging/test-clean.ps1 feed "$VERSION" webgl android
+
+  clean-windows:
+    needs: [tools, packages]
+    runs-on: windows-2025
+    name: clean win-x64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: '*'
+          path: feed
+          merge-multiple: true
+      - name: The guide's steps
+        shell: pwsh
+        run: |
+          docker run --rm -v "${env:GITHUB_WORKSPACE}:C:\w" -e DOTGAME_CLEAN_WORK=C:\clean `
+            mcr.microsoft.com/dotnet/sdk:11.0-windowsservercore-ltsc2025 `
+            pwsh -File C:\w\packaging\test-clean.ps1 C:\w\feed $env:VERSION webgl android
+          exit $LASTEXITCODE
+
   publish:
-    needs: [tools, packages, test]
+    needs: [tools, packages, test, clean-linux, clean-windows]
     if: inputs.publish
     runs-on: ubuntu-latest
     environment: nuget
