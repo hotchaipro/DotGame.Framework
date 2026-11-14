@@ -132,4 +132,23 @@
     <!-- Import the shared content pipeline infrastructure -->
     <Import Project="ContentPipeline.targets" />
 
+    <!--
+        _PublishContent: the built content, published beside the app, where the desktop host loads it
+        from (AppContext.BaseDirectory). _CopyContentToOutputDirectory stages it into $(OutDir) with a
+        Copy that publish never sees, so it's added to the publish's own list here. Left out of a
+        single-file bundle, since the host reads it as files. Desktop only: the web publishes content as
+        static web assets, Android as assets in its package, and iOS copies it into the app bundle.
+    -->
+    <Target Name="_PublishContent"
+                    BeforeTargets="ComputeResolvedFilesToPublishList"
+                    Condition="Exists('$(ContentOutputDir)')">
+        <ItemGroup>
+            <_ContentPipelinePublishOutput Include="$(ContentOutputDir)**\*.*" />
+            <ResolvedFileToPublish Include="@(_ContentPipelinePublishOutput)"
+                                   RelativePath="%(_ContentPipelinePublishOutput.RecursiveDir)%(_ContentPipelinePublishOutput.Filename)%(_ContentPipelinePublishOutput.Extension)"
+                                   CopyToPublishDirectory="PreserveNewest"
+                                   ExcludeFromSingleFile="true" />
+        </ItemGroup>
+    </Target>
+
 </Project>

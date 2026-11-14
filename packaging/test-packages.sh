@@ -47,6 +47,17 @@ PY=$(command -v python3 || command -v python)
 file_path() { if command -v cygpath > /dev/null; then cygpath -m "$1"; else echo "$1"; fi; }
 if command -v cygpath > /dev/null; then CLEAN_PATH=$PATH; fi
 pass=0; fail=0
+# content_published <project folder> <publish folder>: every file the content pipeline built for the
+# project (its obj/ContentPipeline/Output) is in the publish folder at the same place, and there is one
+content_published() {
+  local out=$1/obj/ContentPipeline/Output f n=0
+  [ -d "$out" ] || return 1
+  while IFS= read -r f; do
+    [ -f "$2/${f#"$out"/}" ] || { echo "    not published: ${f#"$out"/}"; return 1; }
+    n=$((n+1))
+  done < <(find "$out" -type f)
+  [ $n -gt 0 ]
+}
 check() { if eval "$2"; then echo "PASS  $1"; pass=$((pass+1)); else echo "FAIL  $1"; fail=$((fail+1)); fi; }
 
 # The samples, outside the repository, so nothing in it is found by a relative path
@@ -126,6 +137,12 @@ for platform in $PLATFORMS; do
       check "$layer sample, webgl: the page loads main.js by its fingerprinted name" 'grep -q "_dotgame/main\.[a-z0-9]*\.js" "$pub/wwwroot/index.html"'
       check "$layer sample, webgl: the content is published" 'find "$pub/wwwroot" -path "*Content*" -type f | grep -q .'
       check "$layer sample, webgl: the framework is published once" '[ "$(ls "$pub/wwwroot/_framework" | grep -cE "^DotGame\.Framework\.[a-z0-9]{10}\.wasm$")" -eq 1 ] && [ "$(ls "$pub/wwwroot/_framework" | grep -cE "^DotGame\.Framework\.WebGL\.[a-z0-9]{10}\.wasm$")" -eq 1 ]'
+    fi
+    if [ $platform = desktop ]; then
+      pub=$T/publish-$layer-desktop
+      PATH=$CLEAN_PATH dotnet publish "$project" -nologo -v q -c Release --use-current-runtime -p:ContentCacheEnabled=false -o "$pub" > "$T/$layer-desktop-publish.log" 2>&1
+      check "$layer sample, desktop: publishes" '[ $? -eq 0 ]'
+      check "$layer sample, desktop: the content is published" 'content_published "$head" "$pub"'
     fi
     if declare -F library_head_checks > /dev/null; then library_head_checks; fi
     check "$layer sample, $platform: shaders compiled by the packages' slangc" '! grep -q -- "--slangc \"slangc\"" "$log" && { ! grep -q -- "--slangc" "$log" || grep -q "dotgame.framework.build.tools.[a-z0-9-]*/[^/]*/tools/slangc" "$log"; }'
@@ -237,6 +254,12 @@ for platform in $PLATFORMS; do
   grep -E "(error|warning) [A-Z]+[0-9]*:" "$T/template-$platform.log" | sed "s|$T/||g" | sort -u | head -3 | cut -c1-600
   if [ $platform = desktop ] && [ $status -eq 0 ]; then
     check "template, desktop: the ball is built" 'find "$tpl/BallGame/BallGame.Desktop/bin" -path "*Content/Textures/ball.*" | grep -q .'
+    # Published as the guide says, for this machine's platform: the build's content is beside the app
+    pub=$T/template-desktop-publish
+    PATH=$CLEAN_PATH dotnet publish "$project" -nologo -v q -c Release --use-current-runtime -p:ContentCacheEnabled=false -o "$pub" > "$T/template-desktop-publish.log" 2>&1
+    check "template, desktop: publishes" '[ $? -eq 0 ]'
+    grep -E "error [A-Z]+[0-9]*:" "$T/template-desktop-publish.log" | sed "s|$T/||g" | sort -u | head -3 | cut -c1-600
+    check "template, desktop: the content and launch screen are published" 'content_published "$tpl/BallGame/BallGame.Desktop" "$pub"'
   fi
 done
 fi
