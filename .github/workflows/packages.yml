@@ -100,12 +100,8 @@ jobs:
           dotnet-version: '11.0.x'
       - name: Install the web workload
         run: dotnet workload install wasm-tools
-      # Only the contents are checked here: the names list is kept by whoever publishes the packages,
-      # who checks them with it first (packaging/check.sh)
       - name: Pack
         shell: bash
-        env:
-          DOTGAME_CHECK_DRY_RUN: '1'
         run: |
           status=0
           PLATFORMS="desktop webgl" packaging/pack.sh > pack.log 2>&1 || status=$?

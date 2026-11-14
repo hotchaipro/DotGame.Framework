@@ -4,8 +4,7 @@
 #
 #   VERSION=0.1.0-local.1 PLATFORMS="desktop android ios webgl" packaging/pack.sh
 #
-# Writes artifacts/packages/*.nupkg (or OUT) and checks them with packaging/check.sh, which needs a
-# names file (DOTGAME_FORBIDDEN_NAMES_FILE) or DOTGAME_CHECK_DRY_RUN=1. The build machine's tool package
+# Writes artifacts/packages/*.nupkg (or OUT) and checks their contents with packaging/check.sh. The build machine's tool package
 # (DotGame.Framework.Build.Tools.<rid>) comes from packaging/pack-tools.sh. What this shares with a
 # library's pack.sh is packaging/pack-lib.sh.
 set -euo pipefail
