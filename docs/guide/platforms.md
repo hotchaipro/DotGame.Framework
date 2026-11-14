@@ -242,9 +242,11 @@ Only a Release publish runs the trimmer, so publish and try it before you ship.
 
 ## Android
 
-Android needs the `android` workload, the Android SDK and a JDK. If Android Studio isn't installed, so
-you don't have the SDK, one build target of the workload's installs the SDK and Microsoft's build of
-OpenJDK, into the folders you name:
+Android needs the `android` workload, the Android SDK and a JDK. Visual Studio on Windows installs all
+three with its .NET Multi-platform App UI development workload, and builds find them there, so you can
+skip the rest of this. Otherwise, one build target of the workload's installs the SDK and Microsoft's
+build of OpenJDK, into the folders you name; with Android Studio's SDK folder, it adds what's missing
+there:
 
 ```sh
 dotnet workload install android

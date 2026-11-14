@@ -10,9 +10,10 @@ A window opens with a ball bouncing around it; click to move it. The game's code
 `MyGame/MyGame` and its content in `MyGame/Content`, shared by a project for each platform: `MyGame.Desktop` (Windows, macOS and Linux),
 `MyGame.WebGL` (the web), `MyGame.Android` and `MyGame.iOS`. The desktop needs only the .NET 11 SDK:
 the content tools come with the packages. The web needs the `wasm-tools` workload, Android the
-`android` workload, the Android SDK and a JDK, and iOS the `ios` workload and a Mac with Xcode. If you
-don't have the Android SDK, this installs it and a JDK; then set `ANDROID_HOME` and `JAVA_HOME` to the
-two folders:
+`android` workload, the Android SDK and a JDK, and iOS the `ios` workload and a Mac with Xcode. Visual
+Studio on Windows installs Android's three with its .NET Multi-platform App UI development workload.
+Otherwise this installs the SDK and a JDK (or adds what's missing to Android Studio's SDK folder); then
+set `ANDROID_HOME` and `JAVA_HOME` to the two folders:
 
 ```sh
 dotnet build MyGame/MyGame.Android -t:InstallAndroidDependencies -p:AndroidSdkDirectory=<sdk folder> -p:JavaSdkDirectory=<jdk folder> -p:AcceptAndroidSDKLicenses=True -p:AndroidManifestType=GoogleV2
