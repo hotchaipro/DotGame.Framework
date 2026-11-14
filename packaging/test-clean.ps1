@@ -29,7 +29,7 @@ function Step([string]$Name, [scriptblock]$Command) {
         Write-Host "PASS  $Name"
     } else {
         Write-Host "FAIL  $Name (exit $LASTEXITCODE)"
-        Get-Content $log | Select-String -Pattern ': error |error :|^error' | Select-Object -Unique -First 10 | ForEach-Object { Write-Host "        $($_.Line.Trim())" }
+        Get-Content $log | Select-String -Pattern ': error |error :|^error|not found|No such file' | Select-Object -Unique -First 10 | ForEach-Object { Write-Host "        $($_.Line.Trim())" }
         Get-Content $log -Tail 4 | ForEach-Object { Write-Host "        $_" }
         $script:Failed++
     }

@@ -186,6 +186,9 @@ jobs:
           pattern: '*'
           path: feed
           merge-multiple: true
+      # The one thing the guide asks Linux for besides the .NET SDK: Python 3, for the web's Emscripten
+      - name: Install Python 3, as the guide says
+        run: apt-get update -qq && apt-get install -y -qq python3 > /dev/null
       - name: The guide's steps
         run: pwsh packaging/test-clean.ps1 feed "$VERSION" webgl android
 

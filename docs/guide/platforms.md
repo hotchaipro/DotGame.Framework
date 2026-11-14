@@ -123,6 +123,12 @@ project uses the `Microsoft.NET.Sdk.WebAssembly` SDK and the `browser-wasm` runt
 [framework sample's project](../../sample/webgl/DotGame.Framework.Sample.WebGL.csproj) has the
 settings to copy, including AOT and trimming for Release.
 
+The web needs the `wasm-tools` workload (`dotnet workload install wasm-tools`). Every build links the
+.NET runtime with Emscripten, so that older browsers run it (Safari before 18.4, Chrome before 137), and on Linux Emscripten needs
+Python 3. Most distributions have it, but container images such as Microsoft's .NET SDK images often
+don't: install `python3` with the system's package manager. The workload brings its own Python on
+Windows and macOS.
+
 <!-- no-check -->
 ```csharp
 [SupportedOSPlatform("browser")]
