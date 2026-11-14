@@ -23,9 +23,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   build:
     strategy:
@@ -48,9 +45,9 @@ jobs:
             platform: osx-x64
 
           # Mobile: cross-compiled
-          - os: ubuntu-latest
+          - os: ubuntu-26.04
             platform: android-arm64-v8a
-          - os: ubuntu-latest
+          - os: ubuntu-26.04
             platform: android-x86_64
           - os: macos-latest
             platform: ios-arm64
@@ -60,7 +57,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Checkout SDL3 submodule
         run: git submodule update --init --depth 1 native/sdl3/src/SDL
@@ -98,7 +95,7 @@ jobs:
         run: ./native/build.ps1 -Platform ${{ matrix.platform }}
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sdl3-native-${{ matrix.platform }}
           path: native/sdl3/${{ matrix.platform }}/
@@ -106,15 +103,15 @@ jobs:
 
   commit:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     name: Commit binaries
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: sdl3-native-*
           path: staging/

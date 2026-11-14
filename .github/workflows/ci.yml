@@ -39,11 +39,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     name: ${{ matrix.rid }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '11.0.x'
       - name: Select Xcode 27.2
@@ -57,7 +57,7 @@ jobs:
         run: dotnet workload install android wasm-tools
       - name: Set up MSVC
         if: runner.os == 'Windows'
-        uses: ilammy/msvc-dev-cmd@v1
+        uses: ./.github/actions/msvc
       - name: Fetch the pinned tools
         run: python packaging/fetch-tools.py ${{ matrix.rid }} artifacts/tools/${{ matrix.rid }}
       - name: Put the tools on PATH
@@ -94,8 +94,8 @@ jobs:
   docs:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '11.0.x'
       - name: Check the API reference

@@ -13,7 +13,6 @@ permissions:
   contents: read
 
 env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
   DOTGAME_UPDATE_GOLDENS: '1'
@@ -39,16 +38,16 @@ jobs:
     runs-on: ${{ matrix.os }}
     name: record ${{ matrix.rid }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '11.0.x'
       - name: Set up MSVC
         if: runner.os == 'Windows'
-        uses: ilammy/msvc-dev-cmd@v1
+        uses: ./.github/actions/msvc
         with:
           arch: ${{ matrix.msvc }}
       - name: Fetch the pinned tools
@@ -75,7 +74,7 @@ jobs:
             cat "artifacts/goldens/$name.txt"
           done
           python -c "import json; print(json.dumps(json.load(open('artifacts/tools/${{ matrix.rid }}/versions.json')), indent=1))" > artifacts/goldens/versions.json || true
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: goldens-${{ matrix.rid }}
           path: artifacts/goldens/

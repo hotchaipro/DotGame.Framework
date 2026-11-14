@@ -23,9 +23,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   build:
     strategy:
@@ -51,21 +48,21 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.12'
 
       - name: Set up MSVC
         if: runner.os == 'Windows'
-        uses: ilammy/msvc-dev-cmd@v1
+        uses: ./.github/actions/msvc
         with:
           arch: ${{ matrix.msvc }}
 
       - name: Cache Mesa's clone
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: native/spirv2dxil/build/mesa
           key: mesa-${{ matrix.rid }}-${{ hashFiles('native/spirv2dxil/build.ps1') }}
@@ -75,7 +72,7 @@ jobs:
         run: ./native/spirv2dxil/build.ps1 -Python python
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: spirv2dxil-${{ matrix.rid }}
           path: native/spirv2dxil/${{ matrix.rid }}/
@@ -83,15 +80,15 @@ jobs:
 
   commit:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     name: Commit binaries
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: spirv2dxil-*
           path: staging/
