@@ -34,7 +34,9 @@ jobs:
             rid: win-x64
           - os: ubuntu-22.04
             rid: linux-x64
-          - os: macos-latest
+          # .NET for iOS 27.2 needs Xcode 27.2, which only the xcode-27 image has (a public preview for now:
+          # macos-latest has Xcode 26)
+          - os: xcode-27
             rid: osx-arm64
     runs-on: ${{ matrix.os }}
     name: ${{ matrix.rid }}
@@ -46,6 +48,9 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '11.0.x'
+      - name: Select Xcode 27.2
+        if: runner.os == 'macOS'
+        run: sudo xcode-select -s /Applications/Xcode_27.2.app
       - name: Install the workloads
         if: runner.os != 'Linux'
         run: dotnet workload install android ios wasm-tools
@@ -65,16 +70,20 @@ jobs:
           if [ "$RUNNER_OS" = Windows ]; then tools=$(cygpath -w "$tools"); fi
           echo "$tools" >> "$GITHUB_PATH"
       # Linux has no iOS workload, so it builds everything else
+      # Without the Platform that the MSVC setup sets for the native tools (x64), which would pick a
+      # solution configuration that doesn't exist
       - name: Build
         if: runner.os != 'Linux'
-        run: dotnet build DotGame.Framework.slnx
+        shell: bash
+        run: unset Platform; dotnet build DotGame.Framework.slnx
       - name: Build
         if: runner.os == 'Linux'
         shell: bash
         run: dotnet sln DotGame.Framework.slnx list | grep '\.csproj$' | grep -v '\.iOS\.csproj$' | xargs -n1 dotnet build
       - name: Test
         # The tests alone: the solution's sample apps aren't tests, and dotnet test would ask for a device to run them on
-        run: dotnet test --solution test/DotGame.Framework.Tests.slnf --no-build
+        shell: bash
+        run: unset Platform; dotnet test --solution test/DotGame.Framework.Tests.slnf --no-build
 
   # The API reference is up to date with the doc comments, and the docs' links resolve. Compiling the
   # guides' samples (tools/api-docs/check-docs.cs without --links) needs the content pipeline's tools,
