@@ -242,6 +242,22 @@ Only a Release publish runs the trimmer, so publish and try it before you ship.
 
 ## Android
 
+Android needs the `android` workload, the Android SDK and a JDK. If Android Studio isn't installed, so
+you don't have the SDK, one build target of the workload's installs the SDK and Microsoft's build of
+OpenJDK, into the folders you name:
+
+```sh
+dotnet workload install android
+dotnet build MyGame/MyGame.Android -t:InstallAndroidDependencies -p:AndroidSdkDirectory=<sdk folder> -p:JavaSdkDirectory=<jdk folder> -p:AcceptAndroidSDKLicenses=True -p:AndroidManifestType=GoogleV2
+```
+
+`AcceptAndroidSDKLicenses` accepts the Android SDK's licenses for you, so read them first if you
+haven't. `AndroidManifestType=GoogleV2` installs from Google's list of SDK packages, since the default
+list doesn't have the command-line tools that .NET for Android 37.2 asks for. Then set `ANDROID_HOME` to
+the SDK's folder and `JAVA_HOME` to the JDK's, so that every build finds them. Android Studio's own SDK
+folder is `~/Library/Android/sdk` on macOS, `%LOCALAPPDATA%\Android\Sdk` on Windows and
+`~/Android/Sdk` on Linux.
+
 The entry point is an `Activity`. Set `ConfigurationChanges` so that turning the device doesn't restart
 the game, and use the launch screen's theme:
 

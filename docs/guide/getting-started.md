@@ -154,8 +154,9 @@ dotnet run --project MyGame/MyGame.Desktop
 ```
 
 The web, Android and iOS each need their workload (`dotnet workload install wasm-tools`, `android` or
-`ios`), and iOS builds on a Mac with Xcode. [Multiple platforms](multiple-platforms.md) explains how
-the template's projects share the game.
+`ios`). Android also needs the Android SDK and a JDK, which one command installs
+([Platforms](platforms.md#android)), and iOS builds on a Mac with Xcode.
+[Multiple platforms](multiple-platforms.md) explains how the template's projects share the game.
 
 ## Where to go next
 
