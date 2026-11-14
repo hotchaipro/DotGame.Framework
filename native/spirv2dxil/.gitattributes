@@ -1,0 +1,2 @@
+# Mesa's sources are LF: the patches must stay LF on Windows checkouts too
+*.patch -text

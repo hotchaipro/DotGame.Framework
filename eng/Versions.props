@@ -1,0 +1,19 @@
+<Project>
+    <!-- The versions of the packages this repository's projects reference, in one place -->
+    <PropertyGroup>
+        <!-- DotGame.Imaging (PNG, JPEG and WebP): the content pipeline's build tool reads texture sources with it -->
+        <DotGameImagingVersion>2.0.2</DotGameImagingVersion>
+        <!-- DotGame.AudioCodecs (Opus, FLAC and WAV): desktop and Android decode sounds and music with it, and the build tool reads and encodes audio with it (eng/DotGame.AudioCodecs.targets) -->
+        <DotGameAudioCodecsVersion>0.1.0-preview.1</DotGameAudioCodecsVersion>
+        <Sdl3CsVersion>3.4.20</Sdl3CsVersion>
+        <XunitV3Version>4.0.3</XunitV3Version>
+        <MicrosoftCodeAnalysisCSharpVersion>5.9.0</MicrosoftCodeAnalysisCSharpVersion>
+        <!--
+            What runs inside a game's build matches the oldest SDK global.json allows (10.0.100):
+            its compiler, Roslyn 5.0, loads only analyzers built against it or older, and its MSBuild
+            is 18.0. Raise these with that SDK, not to the latest packages.
+        -->
+        <MicrosoftCodeAnalysisCSharpAnalyzerVersion>5.0.0</MicrosoftCodeAnalysisCSharpAnalyzerVersion>
+        <MicrosoftBuildUtilitiesCoreVersion>18.0.2</MicrosoftBuildUtilitiesCoreVersion>
+    </PropertyGroup>
+</Project>

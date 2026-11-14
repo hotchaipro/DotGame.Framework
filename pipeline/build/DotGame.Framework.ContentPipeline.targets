@@ -1,0 +1,43 @@
+<Project>
+
+    <!--
+        DotGame.Framework.ContentPipeline.targets
+
+        Entry point for the framework content pipeline (TextureContent,
+        ShaderContent, SoundContent, MusicContent, DataContent).  Imports the
+        pipeline for the project's platform.
+
+        Games don't import this directly: the framework's include
+        (packaging\build\DotGame.Framework.targets) imports this file, and the includes of libraries built on the
+        framework import the framework's.
+
+        The layout mirrors the future NuGet package (build\<PackageId>.targets is
+        imported automatically from a PackageReference).
+
+        Properties (optional, set before the Import):
+            ContentPipelinePlatform   desktop | webgl | android | ios: the platform
+                                                                whose content formats to build.  The project's
+                                                                platform (DotGamePlatform, which the
+                                                                framework's include detects) when empty.
+    -->
+
+    <PropertyGroup>
+        <_FrameworkContentPipelineImported>true</_FrameworkContentPipelineImported>
+        <ContentPipelinePlatform Condition="'$(ContentPipelinePlatform)' == ''">$(DotGamePlatform)</ContentPipelinePlatform>
+        <!-- Default content items and LinkBase, after the project's own items -->
+        <AfterMicrosoftNETSdkTargets>$(AfterMicrosoftNETSdkTargets);$(MSBuildThisFileDirectory)..\ContentPipeline.DefaultItems.targets</AfterMicrosoftNETSdkTargets>
+    </PropertyGroup>
+
+    <!--
+        A project with no platform builds no content, and that's only an error if it has some: a
+        game's shared library references the framework or a library built on it, and with it the pipeline.
+    -->
+    <Target Name="_DotGameCheckContentPipelinePlatform" BeforeTargets="BeforeBuild" Condition="'$(ContentPipelinePlatform)' == ''">
+        <Error Condition="'@(TextureContent)@(ShaderContent)@(SoundContent)@(MusicContent)@(DataContent)@(TextureAtlasContent)@(SoundBankContent)@(SpriteFontContent)@(LaunchScreen)' != ''"
+                      Text="The content pipeline has no platform, so it can't build this project's content. Reference a platform package (DotGame.Framework.Desktop, .WebGL, .Android or .iOS), or import packaging\build\DotGame.Framework.targets, which detects the platform." />
+    </Target>
+
+    <Import Project="$(MSBuildThisFileDirectory)..\ContentPipeline.$(ContentPipelinePlatform).targets" Condition="'$(ContentPipelinePlatform)' != ''" />
+
+
+</Project>

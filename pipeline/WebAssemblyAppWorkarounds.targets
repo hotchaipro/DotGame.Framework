@@ -1,0 +1,249 @@
+<Project>
+
+    <!--
+        WebAssemblyAppWorkarounds.targets
+
+        Reusable build-time workarounds for .NET WebAssembly applications
+        (Microsoft.NET.Sdk.WebAssembly). Generic to any WASM app that
+        references other WebAssembly SDK library projects; nothing here
+        is tied to a specific framework or game.
+
+        Imported automatically by ContentPipeline.webgl.targets.
+
+        Targets defined here:
+
+            _RemoveLibraryWasmFrameworkPublishAssets
+                When multiple projects in the dependency graph use
+                Microsoft.NET.Sdk.WebAssembly, each generates its own
+                publish.dotnet.js (the WASM boot-config manifest registered
+                under _framework/dotnet.js). During this project's publish
+                the OverrideHtmlAssetPlaceholders task groups all JS
+                endpoints by their "label" metadata; two endpoints sharing
+                the same label (_framework/dotnet.js) causes an
+                InvalidOperationException.
+
+                Strip the library project's _framework/ publish assets
+                (including compressed alternatives) before the HTML-placeholder
+                resolution so only this project's copy survives.
+
+            _RemoveReferencedProjectCompressedStaticWebAssets
+                $(CompressionEnabled) only governs the project it is set in: it
+                gates the import of the static web assets SDK's compression
+                targets, so setting it to false in an app stops that app from
+                compressing, but referenced library projects still build with
+                their own default of true. Their .br/.gz assets are then pulled
+                into the app by ComputeReferencedProjectsPublishAssets and
+                published, so wwwroot ends up with compressed sidecars for the
+                libraries' .js despite compression being switched off.
+
+                Drop referenced projects' compressed assets (and the endpoints
+                that serve them) so $(CompressionEnabled) behaves as a whole-app
+                switch.
+
+        Properties set here:
+
+            CompressionExcludePatterns
+                Excludes HTML from static web asset pre-compression, because the
+                compressed copies are produced from the pre-substitution HTML.
+                See the property below for the full explanation.
+    -->
+
+    <!--
+        Static web asset compression compresses the ORIGINAL HTML, not the copy
+        produced by the fingerprint-placeholder substitution
+        ($(OverrideHtmlAssetPlaceholders) plus _FingerprintNonJsHtmlAssetPlaceholders
+        below). The published index.html therefore has real fingerprinted URLs while
+        its index.html.gz / index.html.br siblings still contain the raw
+        "#[.{fingerprint}]" markers.
+
+        Hosts that serve a pre-compressed sibling when the request carries
+        Accept-Encoding (Azure Static Web Apps does) then hand every real browser
+        the unsubstituted HTML. The browser reads "#[...]" as a URL fragment, so
+        "_dotgame/main#[.{fingerprint}].js" is requested as "_dotgame/main", every
+        module 404s, and the app never starts. The failure is invisible to any tool
+        that does not request compression (a plain curl sees the correct file),
+        which makes it easy to misdiagnose.
+
+        HTML is small and every host compresses it on the fly, so nothing is lost by
+        excluding it. This must be a property rather than a target: the SDK folds
+        $(CompressionExcludePatterns) into its own defaults during evaluation, which
+        happens after this file is imported from the project body and before any
+        target runs.
+    -->
+    <PropertyGroup>
+        <CompressionExcludePatterns>$(CompressionExcludePatterns);**/*.html</CompressionExcludePatterns>
+    </PropertyGroup>
+
+    <Target Name="_RemoveLibraryWasmFrameworkPublishAssets" BeforeTargets="ResolveHtmlAssetPlaceholdersPublishConfiguration;ResolvePublishCompressedStaticWebAssets">
+        <ItemGroup>
+            <StaticWebAsset Remove="@(StaticWebAsset)" Condition=" '%(SourceId)' != '$(PackageId)' and '%(AssetKind)' != 'Build' and $([System.String]::Copy('%(RelativePath)').StartsWith('_framework/')) " />
+        </ItemGroup>
+    </Target>
+
+    <!--
+        _FingerprintNonJsHtmlAssetPlaceholders
+
+        The SDK's OverrideHtmlAssetPlaceholders task (Microsoft.NET.Sdk.StaticWebAssets)
+        is hardcoded to resolve "#[.{fingerprint}]" markers in HTML only for endpoints
+        whose AssetFile ends with ".js" or ".mjs". For any other asset reference, the
+        task still strips the marker via its regex but never substitutes a fingerprinted
+        URL, so references like:
+
+                <link rel="manifest" href="manifest#[.{fingerprint}].json">
+                <img src="assets/splash#[.{fingerprint}].webp" />
+
+        end up in the published HTML as plain "manifest.json" / "assets/splash.webp"
+        with no cache-busting hash, even though the SDK itself computed fingerprinted
+        endpoints for those files (e.g. "manifest.wx3bq1p4ep.json").
+
+        This target runs BEFORE the SDK target, rewrites the HTML in a staging copy by
+        resolving non-JS placeholders against the full StaticWebAssetEndpoint label-to-
+        route map, and points the SDK at the staged copy. JS/MJS placeholders are left
+        intact for the SDK to handle normally.
+
+        The same task also stamps subresource integrity onto
+        "<link rel=modulepreload>" elements. The SDK emits an import map whose
+        "integrity" section covers every fingerprinted JS module, wherever the
+        owning layer chooses to serve it from (e.g. "_dotgame/main.js").
+        A modulepreload without a matching integrity attribute is fetched with no
+        integrity metadata, so when the module graph later requests the same URL with
+        the import map's integrity the browser refuses to reuse the preloaded response:
+
+                A preload for '.../_dotgame/main.<fingerprint>.js' is found,
+                but is not used due to an integrity mismatch.
+
+        Adding the attribute here makes the preload and the module request agree.
+
+        See the upstream task source for the limitation:
+            src/StaticWebAssetsSdk/Tasks/OverrideHtmlAssetPlaceholders.cs
+    -->
+
+    <UsingTask TaskName="_FingerprintNonJsHtmlAssetPlaceholdersTask" AssemblyFile="$(FrameworkContentPipelineTasksAssembly)" />
+
+    <Target Name="_FingerprintNonJsHtmlAssetPlaceholders"
+                    DependsOnTargets="_BuildContentPipelineTasks"
+                    AfterTargets="ResolveHtmlAssetPlaceholdersBuildConfiguration;ResolveHtmlAssetPlaceholdersPublishConfiguration"
+                    BeforeTargets="GenerateHtmlAssetPlaceholdersBuildStaticWebAssets;GenerateHtmlAssetPlaceholdersPublishStaticWebAssets"
+                    Condition=" '@(_HtmlStaticWebAssets)' != '' ">
+
+        <PropertyGroup>
+            <_FingerprintNonJsHtmlAssetPlaceholdersStagingPath>$([MSBuild]::NormalizeDirectory($(_StaticWebAssetsIntermediateOutputPath), 'htmlassetplaceholders', 'nonjs'))</_FingerprintNonJsHtmlAssetPlaceholdersStagingPath>
+        </PropertyGroup>
+
+        <_FingerprintNonJsHtmlAssetPlaceholdersTask
+                HtmlFiles="@(_HtmlStaticWebAssets)"
+                Endpoints="@(StaticWebAssetEndpoint)"
+                OutputPath="$(_FingerprintNonJsHtmlAssetPlaceholdersStagingPath)">
+            <Output TaskParameter="RewrittenHtmlFiles" ItemName="_FingerprintNonJsHtmlAssetPlaceholdersRewritten" />
+        </_FingerprintNonJsHtmlAssetPlaceholdersTask>
+
+        <ItemGroup>
+            <_HtmlStaticWebAssets Remove="@(_HtmlStaticWebAssets)" />
+            <_HtmlStaticWebAssets Include="@(_FingerprintNonJsHtmlAssetPlaceholdersRewritten)" />
+        </ItemGroup>
+    </Target>
+
+    <!--
+        Remove compressed assets that arrived from referenced projects when
+        this app has compression switched off.
+
+        Compressed assets carry AssetTraitName="Content-Encoding" (with
+        AssetTraitValue "gzip" / "br"), which identifies them regardless of
+        file extension or which project produced them. Their endpoints are
+        matched on the .br/.gz asset file so that BOTH kinds are removed: the
+        content-negotiation selectors added to the original route (e.g.
+        "audio.js" with Selector gzip) and the standalone routes for the
+        compressed files themselves (e.g. "audio.js.gz").
+
+        Build and publish need SEPARATE targets rather than one target hooked
+        into both chains. A target runs at most once per project instance, so
+        a combined target fires at the earlier (build) point and is then
+        considered done — leaving the publish assets, which are merged in
+        later by ResolveAllPublishStaticWebAssets, untouched.
+    -->
+    <Target Name="_RemoveReferencedProjectCompressedPublishStaticWebAssets"
+                    AfterTargets="ResolveAllPublishStaticWebAssets"
+                    BeforeTargets="GenerateStaticWebAssetsPublishManifest;CopyStaticWebAssetsToPublishDirectory;ResolveHtmlAssetPlaceholdersPublishConfiguration"
+                    Condition="'$(CompressionEnabled)' == 'false'">
+        <ItemGroup>
+            <_CompressedReferencedPublishAsset Include="@(StaticWebAsset)"
+                                                                                  Condition="'%(StaticWebAsset.AssetTraitName)' == 'Content-Encoding'" />
+        </ItemGroup>
+        <ItemGroup Condition="'@(_CompressedReferencedPublishAsset)' != ''">
+            <StaticWebAsset Remove="@(_CompressedReferencedPublishAsset)" />
+            <StaticWebAssetEndpoint Remove="@(StaticWebAssetEndpoint)"
+                                                            Condition="$([System.String]::Copy('%(StaticWebAssetEndpoint.AssetFile)').EndsWith('.br')) Or $([System.String]::Copy('%(StaticWebAssetEndpoint.AssetFile)').EndsWith('.gz'))" />
+        </ItemGroup>
+    </Target>
+
+    <Target Name="_RemoveReferencedProjectCompressedBuildStaticWebAssets"
+                    BeforeTargets="GenerateStaticWebAssetsManifest;CopyStaticWebAssetsToOutputDirectory"
+                    Condition="'$(CompressionEnabled)' == 'false'">
+        <ItemGroup>
+            <_CompressedReferencedBuildAsset Include="@(StaticWebAsset)"
+                                                                              Condition="'%(StaticWebAsset.AssetTraitName)' == 'Content-Encoding'" />
+        </ItemGroup>
+        <ItemGroup Condition="'@(_CompressedReferencedBuildAsset)' != ''">
+            <StaticWebAsset Remove="@(_CompressedReferencedBuildAsset)" />
+            <StaticWebAssetEndpoint Remove="@(StaticWebAssetEndpoint)"
+                                                            Condition="$([System.String]::Copy('%(StaticWebAssetEndpoint.AssetFile)').EndsWith('.br')) Or $([System.String]::Copy('%(StaticWebAssetEndpoint.AssetFile)').EndsWith('.gz'))" />
+        </ItemGroup>
+    </Target>
+
+    <!-- WasmEmitSymbolMap generates obj\...\wasm\for-publish\dotnet.native.js.symbols (in the
+              nested publish, which links the native runtime). The map symbolicates that build's
+              wasm-function[NNNNN] crash frames offline; the index->name mapping is specific to each
+              native link, so it must travel with the exact build it describes.
+
+              Since .NET 11 the outer publish also makes the map one of the runtime's boot assets
+              (ComputeWasmPublishAssets' EmitSymbolMap), so every player downloads it at startup
+              (about 450 KB) for the runtime to name frames in its own console messages. Turn the
+              property off in the outer publish just before that step, so the map stays out of the
+              boot assets, and copy the file into the publish ourselves. -->
+    <Target Name="KeepWasmSymbolMapOutOfBootAssets" BeforeTargets="ProcessPublishFilesForWasm"
+            Condition="'$(WasmEmitSymbolMap)' == 'true' and '$(WasmBuildingForNestedPublish)' != 'true'">
+        <PropertyGroup>
+            <_DotGameShipWasmSymbolMap>true</_DotGameShipWasmSymbolMap>
+            <WasmEmitSymbolMap>false</WasmEmitSymbolMap>
+        </PropertyGroup>
+    </Target>
+
+    <!-- Download size: runtime features a game on the web doesn't use, removed by the trimmer
+              (each can be turned back on in the game's project) -->
+    <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+        <!-- Reflection.Emit: AOT code runs no emitted code, and the trimmer drops it -->
+        <DynamicCodeSupport Condition="'$(DynamicCodeSupport)' == ''">false</DynamicCodeSupport>
+        <NullabilityInfoContextSupport Condition="'$(NullabilityInfoContextSupport)' == ''">false</NullabilityInfoContextSupport>
+        <MetricsSupport Condition="'$(MetricsSupport)' == ''">false</MetricsSupport>
+        <DebuggerSupport Condition="'$(DebuggerSupport)' == ''">false</DebuggerSupport>
+        <_AggressiveAttributeTrimming Condition="'$(_AggressiveAttributeTrimming)' == ''">true</_AggressiveAttributeTrimming>
+    </PropertyGroup>
+
+    <Target Name="CopyWasmSymbolMapToPublish" AfterTargets="Publish" Condition="'$(_DotGameShipWasmSymbolMap)' == 'true'">
+        <ItemGroup>
+            <_WasmSymbolMap Include="$(IntermediateOutputPath)wasm\for-publish\dotnet.native.js.symbols" />
+        </ItemGroup>
+        <Copy SourceFiles="@(_WasmSymbolMap)" DestinationFolder="$(PublishDir)wwwroot\_framework" SkipUnchangedFiles="true" Condition="'@(_WasmSymbolMap)' != ''" />
+    </Target>
+
+    <!-- A project reached through a symbolic link (macOS's temporary folder /var/folders is
+              /private/var/folders): the WebAssembly SDK (11.0.0) passes the project's own .pdb to
+              DefineStaticWebAssets by a relative path (obj/Debug/net11.0/App.pdb, from
+              @(_DebugSymbolsIntermediatePath)), with ContentRoot from %(RootDir)%(Directory). MSBuild
+              makes that ContentRoot from the project path as given (the link), but the task makes the
+              file's full path from the process's working directory, which the OS reports with the link
+              resolved. The two don't match, so the task gives the .pdb a made-up identity under
+              obj/.../_framework/ that UpdatePackageStaticWebAssets can't find ("Source file ... does not
+              exist for framework asset materialization"), and the build fails. Give the candidates full
+              paths as MSBuild sees them, so the task's full path and the ContentRoot agree. -->
+    <Target Name="_UseFullPathsForWasmFrameworkCandidates" AfterTargets="_ComputeWasmBuildCandidates">
+        <ItemGroup>
+            <_DotGameWasmFrameworkCandidates Include="@(_WasmNonDllNonNativeCandidates->'%(FullPath)')" />
+            <_WasmNonDllNonNativeCandidates Remove="@(_WasmNonDllNonNativeCandidates)" />
+            <_WasmNonDllNonNativeCandidates Include="@(_DotGameWasmFrameworkCandidates)" />
+            <_DotGameWasmFrameworkCandidates Remove="@(_DotGameWasmFrameworkCandidates)" />
+        </ItemGroup>
+    </Target>
+
+</Project>
+

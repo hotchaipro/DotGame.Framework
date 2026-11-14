@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+        A platform for tests: the framework's services over fakes that record what's done with them,
+        and a GameHost driven by hand on a game thread. It's how code built on the framework
+        tests itself against real framework objects without a device, a window or
+        the framework's internals: the framework gives its internals to this assembly, as to a
+        platform, and to nothing built on it.
+    -->
+
+    <PropertyGroup>
+        <TargetFramework>net11.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>disable</ImplicitUsings>
+        <IsPackable>false</IsPackable>
+        <RootNamespace>DotGame.Framework.Testing</RootNamespace>
+        <!--
+            DG0002 keeps a platform to the platform contract. A test platform also does what GameHost does
+            for a real one, outside it: it makes the services by themselves (a library's test may need a
+            content service without a game) and starts them.
+        -->
+        <NoWarn>$(NoWarn);DG0002</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\framework\DotGame.Framework.csproj" />
+    </ItemGroup>
+
+</Project>

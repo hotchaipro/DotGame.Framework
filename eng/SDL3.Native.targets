@@ -1,0 +1,65 @@
+<Project>
+
+    <!--
+        SDL3.Native.targets
+
+        Resolves native SDL3 binaries from the native/sdl3/ directory
+        based on the current RuntimeIdentifier. These binaries are built from the
+        official SDL source (see native/sdl3/README.md) and checked into the repo.
+
+        This replaces the SDL3-CS.Native NuGet package.
+    -->
+
+    <PropertyGroup>
+        <SDL3NativeRoot>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)..\native\sdl3\'))</SDL3NativeRoot>
+    </PropertyGroup>
+
+    <!-- Windows x64 -->
+    <ItemGroup Condition="'$(RuntimeIdentifier)' == 'win-x64' Or ('$(RuntimeIdentifier)' == '' And $([MSBuild]::IsOSPlatform('Windows')) And '$(Platform)' != 'ARM64')">
+        <None Include="$(SDL3NativeRoot)win-x64\SDL3.dll" Condition="Exists('$(SDL3NativeRoot)win-x64\SDL3.dll')">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <Link>SDL3.dll</Link>
+        </None>
+    </ItemGroup>
+
+    <!-- Windows ARM64 -->
+    <ItemGroup Condition="'$(RuntimeIdentifier)' == 'win-arm64' Or ('$(RuntimeIdentifier)' == '' And $([MSBuild]::IsOSPlatform('Windows')) And '$(Platform)' == 'ARM64')">
+        <None Include="$(SDL3NativeRoot)win-arm64\SDL3.dll" Condition="Exists('$(SDL3NativeRoot)win-arm64\SDL3.dll')">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <Link>SDL3.dll</Link>
+        </None>
+    </ItemGroup>
+
+    <!-- Linux x64 -->
+    <ItemGroup Condition="'$(RuntimeIdentifier)' == 'linux-x64' Or ('$(RuntimeIdentifier)' == '' And $([MSBuild]::IsOSPlatform('Linux')) And '$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'X64')">
+        <None Include="$(SDL3NativeRoot)linux-x64\libSDL3.so" Condition="Exists('$(SDL3NativeRoot)linux-x64\libSDL3.so')">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <Link>libSDL3.so</Link>
+        </None>
+    </ItemGroup>
+
+    <!-- Linux ARM64 -->
+    <ItemGroup Condition="'$(RuntimeIdentifier)' == 'linux-arm64' Or ('$(RuntimeIdentifier)' == '' And $([MSBuild]::IsOSPlatform('Linux')) And '$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'Arm64')">
+        <None Include="$(SDL3NativeRoot)linux-arm64\libSDL3.so" Condition="Exists('$(SDL3NativeRoot)linux-arm64\libSDL3.so')">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <Link>libSDL3.so</Link>
+        </None>
+    </ItemGroup>
+
+    <!-- macOS x64 -->
+    <ItemGroup Condition="'$(RuntimeIdentifier)' == 'osx-x64' Or ('$(RuntimeIdentifier)' == '' And $([MSBuild]::IsOSPlatform('OSX')) And '$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'X64')">
+        <None Include="$(SDL3NativeRoot)osx-x64\libSDL3.dylib" Condition="Exists('$(SDL3NativeRoot)osx-x64\libSDL3.dylib')">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <Link>libSDL3.dylib</Link>
+        </None>
+    </ItemGroup>
+
+    <!-- macOS ARM64 -->
+    <ItemGroup Condition="'$(RuntimeIdentifier)' == 'osx-arm64' Or ('$(RuntimeIdentifier)' == '' And $([MSBuild]::IsOSPlatform('OSX')) And '$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' != 'X64')">
+        <None Include="$(SDL3NativeRoot)osx-arm64\libSDL3.dylib" Condition="Exists('$(SDL3NativeRoot)osx-arm64\libSDL3.dylib')">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <Link>libSDL3.dylib</Link>
+        </None>
+    </ItemGroup>
+
+</Project>

@@ -1,0 +1,3 @@
+[submodule "native/sdl3/src/SDL"]
+	path = native/sdl3/src/SDL
+	url = https://github.com/libsdl-org/SDL.git

@@ -1,0 +1,13 @@
+{
+  "name": "DotGame Framework Sample",
+  "short_name": "Sample",
+  "start_url": ".",
+  "display": "fullscreen",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

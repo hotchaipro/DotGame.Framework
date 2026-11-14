@@ -1,0 +1,32 @@
+From 405647d72203e9d1cc959e1888dd004269abc0d0 Mon Sep 17 00:00:00 2001
+From: DotGame contributors <dotgame@users.noreply.github.com>
+Date: Sat, 7 Nov 2026 18:49:54 -0500
+Subject: [PATCH 1/2] microsoft/compiler: include c99_alloca.h instead of
+ malloc.h
+
+macOS has no malloc.h, so dxil_internal.h stopped spirv-to-dxil from
+building there. c99_alloca.h includes malloc.h with MSVC, where it
+defines the alloca macro this include is about, and stdlib.h elsewhere.
+---
+ src/microsoft/compiler/dxil_internal.h | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/src/microsoft/compiler/dxil_internal.h b/src/microsoft/compiler/dxil_internal.h
+index 1a62f5d..7362174 100644
+--- a/src/microsoft/compiler/dxil_internal.h
++++ b/src/microsoft/compiler/dxil_internal.h
+@@ -31,8 +31,9 @@
+ #include <stdint.h>
+ 
+ // Malloc.h defines a macro for alloca. Let's at least make sure that all includers
+-// of this header have the same definition of alloca.
+-#include <malloc.h>
++// of this header have the same definition of alloca. c99_alloca.h includes
++// it with MSVC and stdlib.h elsewhere: macOS has no malloc.h.
++#include "c99_alloca.h"
+ 
+ struct dxil_type_list {
+    struct dxil_type **types;
+-- 
+2.54.0 (Apple Git-157)
+

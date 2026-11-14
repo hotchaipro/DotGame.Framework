@@ -1,0 +1,53 @@
+<Project>
+
+    <!--
+        The content pipeline's default items and LinkBase, as the .NET SDK has them for its own items. Imported
+        after the project's own items (AfterMicrosoftNETSdkTargets, set by the pipeline), and set while the
+        project is read, so Visual Studio shows them.
+
+        Default items: a file under the project's Content folder is content without being declared, by its
+        extension. Images (.png, .jpg, .jpeg, .webp) are TextureContent; Slang (.slang) is ShaderContent; .flac and .ogg
+        are MusicContent, as is .wav under Content\Music; any other .wav is SoundContent. A file a
+        content item of any type already includes (an atlas's images, a sound bank's sounds, a launch screen) is
+        left out. EnableDefaultContentItems=false turns them off.
+
+        LinkBase: an item with LinkBase and no Link is named %(LinkBase)%(RecursiveDir)%(Filename)%(Extension),
+        so <TextureContent Include="..\Content\Textures\*.png"> with <LinkBase>Content\Textures</LinkBase> names
+        ball.png Content\Textures\ball.png.
+    -->
+    <PropertyGroup>
+        <EnableDefaultContentItems Condition="'$(EnableDefaultContentItems)' == ''">true</EnableDefaultContentItems>
+    </PropertyGroup>
+
+    <ItemGroup Condition="'$(EnableDefaultContentItems)' == 'true'">
+        <_DotGameDeclaredContent Include="@(TextureContent);@(ShaderContent);@(SoundContent);@(MusicContent);@(DataContent);@(LaunchScreen);@(TextureAtlasContent);@(SoundBankContent);@(SpriteFontContent)" />
+        <TextureContent Include="Content\**\*.png;Content\**\*.jpg;Content\**\*.jpeg;Content\**\*.webp" Exclude="@(_DotGameDeclaredContent)" />
+        <ShaderContent Include="Content\**\*.slang" Exclude="@(_DotGameDeclaredContent)" />
+        <MusicContent Include="Content\Music\**\*.wav;Content\**\*.flac;Content\**\*.ogg" Exclude="@(_DotGameDeclaredContent)" />
+        <SoundContent Include="Content\**\*.wav" Exclude="@(_DotGameDeclaredContent);Content\Music\**" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <TextureContent Update="@(TextureContent)">
+            <LinkBase Condition="'%(LinkBase)' != ''">$([MSBuild]::EnsureTrailingSlash(%(LinkBase)))</LinkBase>
+            <Link Condition="'%(Link)' == '' and '%(LinkBase)' != ''">%(LinkBase)%(RecursiveDir)%(Filename)%(Extension)</Link>
+        </TextureContent>
+        <ShaderContent Update="@(ShaderContent)">
+            <LinkBase Condition="'%(LinkBase)' != ''">$([MSBuild]::EnsureTrailingSlash(%(LinkBase)))</LinkBase>
+            <Link Condition="'%(Link)' == '' and '%(LinkBase)' != ''">%(LinkBase)%(RecursiveDir)%(Filename)%(Extension)</Link>
+        </ShaderContent>
+        <SoundContent Update="@(SoundContent)">
+            <LinkBase Condition="'%(LinkBase)' != ''">$([MSBuild]::EnsureTrailingSlash(%(LinkBase)))</LinkBase>
+            <Link Condition="'%(Link)' == '' and '%(LinkBase)' != ''">%(LinkBase)%(RecursiveDir)%(Filename)%(Extension)</Link>
+        </SoundContent>
+        <MusicContent Update="@(MusicContent)">
+            <LinkBase Condition="'%(LinkBase)' != ''">$([MSBuild]::EnsureTrailingSlash(%(LinkBase)))</LinkBase>
+            <Link Condition="'%(Link)' == '' and '%(LinkBase)' != ''">%(LinkBase)%(RecursiveDir)%(Filename)%(Extension)</Link>
+        </MusicContent>
+        <DataContent Update="@(DataContent)">
+            <LinkBase Condition="'%(LinkBase)' != ''">$([MSBuild]::EnsureTrailingSlash(%(LinkBase)))</LinkBase>
+            <Link Condition="'%(Link)' == '' and '%(LinkBase)' != ''">%(LinkBase)%(RecursiveDir)%(Filename)%(Extension)</Link>
+        </DataContent>
+    </ItemGroup>
+
+</Project>

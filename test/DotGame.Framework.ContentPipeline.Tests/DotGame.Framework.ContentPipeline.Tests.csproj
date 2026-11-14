@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+        The content pipeline's tests: the framework build tool and tasks, and MSBuild runs of the real
+        targets on temporary projects. See README.md here, which also says how a library built on the
+        framework tests its own content pipeline with Support\.
+    -->
+
+    <PropertyGroup>
+        <TargetFramework>net11.0</TargetFramework>
+        <OutputType>Exe</OutputType>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <IsPackable>false</IsPackable>
+        <RootNamespace>DotGame.Framework.ContentPipeline.Tests</RootNamespace>
+        <!-- The tests run the build tool's commands on the invariant culture, as the tool itself does -->
+        <InvariantGlobalization>true</InvariantGlobalization>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="xunit.v3" Version="$(XunitV3Version)" />
+        <!-- The tasks reference these at compile time only; MSBuild supplies them when it loads the tasks -->
+        <PackageReference Include="Microsoft.Build.Utilities.Core" Version="$(MicrosoftBuildUtilitiesCoreVersion)" />
+    </ItemGroup>
+
+    <!-- Where the tests find the framework's repository (Support/Paths.cs) -->
+    <ItemGroup>
+        <AssemblyMetadata Include="DotGameFrameworkDir" Value="$(DotGameFrameworkDir)" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Include="..\..\platform\shared\Content\Ktx2Texture.cs" Link="Platform\Shared\Content\Ktx2Texture.cs" />
+        <Compile Include="..\..\platform\shared\Content\Ktx2PixelFormat.cs" Link="Platform\Shared\Content\Ktx2PixelFormat.cs" />
+        <Using Include="System.Numerics" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\pipeline\tool\DotGame.Framework.ContentPipeline.BuildTool.csproj" />
+        <ProjectReference Include="..\..\pipeline\tasks\DotGame.Framework.ContentPipeline.Tasks.csproj" />
+        <ProjectReference Include="..\..\framework\DotGame.Framework.csproj" />
+        <ProjectReference Include="..\DotGame.ContentPipeline.FakeTool\DotGame.ContentPipeline.FakeTool.csproj" />
+    </ItemGroup>
+
+</Project>

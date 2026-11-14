@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json.schemastore.org/template",
+  "author": "Hot Chai Games LLC",
+  "classifications": [ "Game", "Desktop", "Web", "Android", "iOS" ],
+  "identity": "DotGame.Templates.Game",
+  "name": "DotGame game",
+  "description": "A DotGame game: its shared code and content, with a project for each platform (desktop, web, Android and iOS).",
+  "shortName": "dotgame",
+  "sourceName": "MyGame",
+  "preferNameDirectory": true,
+  "guids": [ "88ff4776-31c5-4720-b456-713e7d6fa899" ],
+  "tags": {
+    "language": "C#",
+    "type": "solution"
+  },
+  "symbols": {
+    "applicationId": {
+      "type": "parameter",
+      "datatype": "text",
+      "description": "The Android application ID and iOS bundle ID. The default is com.example. and the name in lower case.",
+      "defaultValue": ""
+    },
+    "lowerName": {
+      "type": "generated",
+      "generator": "casing",
+      "parameters": { "source": "name", "toLower": true }
+    },
+    "defaultApplicationId": {
+      "type": "generated",
+      "generator": "join",
+      "parameters": {
+        "symbols": [
+          { "type": "const", "value": "com.example." },
+          { "type": "ref", "value": "lowerName" }
+        ]
+      }
+    },
+    "finalApplicationId": {
+      "type": "generated",
+      "generator": "coalesce",
+      "parameters": { "sourceVariableName": "applicationId", "fallbackVariableName": "defaultApplicationId" },
+      "replaces": "com.example.mygame"
+    }
+  },
+  "primaryOutputs": [
+    { "path": "MyGame.slnx" }
+  ]
+}

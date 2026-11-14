@@ -1,0 +1,9 @@
+#nullable enable
+const DotGame.Framework.Android.AndroidGameEngine.ConfigurationChanges = Android.Content.PM.ConfigChanges.Keyboard | Android.Content.PM.ConfigChanges.KeyboardHidden | Android.Content.PM.ConfigChanges.Navigation | Android.Content.PM.ConfigChanges.Orientation | Android.Content.PM.ConfigChanges.ScreenLayout | Android.Content.PM.ConfigChanges.UiMode | Android.Content.PM.ConfigChanges.ScreenSize | Android.Content.PM.ConfigChanges.SmallestScreenSize | Android.Content.PM.ConfigChanges.Density | Android.Content.PM.ConfigChanges.FontScale -> Android.Content.PM.ConfigChanges
+DotGame.Framework.Android.AndroidGameEngine
+DotGame.Framework.Android.AndroidGameEngine.AndroidGameEngine(Android.App.Activity! activity, Android.Views.ViewGroup! hostView, DotGame.Framework.Android.AndroidGameEngine.Options? options = null) -> void
+DotGame.Framework.Android.AndroidGameEngine.Options
+DotGame.Framework.Android.AndroidGameEngine.Options.ExitProcessOnFinish.get -> bool
+DotGame.Framework.Android.AndroidGameEngine.Options.ExitProcessOnFinish.set -> void
+DotGame.Framework.Android.AndroidGameEngine.Options.Options() -> void
+DotGame.Framework.Android.AndroidGameEngine.Run(DotGame.Framework.Game! game) -> void

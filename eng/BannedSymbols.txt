@@ -1,0 +1,146 @@
+// APIs that game code (the framework, its platforms, what's built on it, and the games) must not use: reflection, which
+// hinders trimming and costs performance, and LINQ, which allocates. Checked by
+// Microsoft.CodeAnalysis.BannedApiAnalyzers (DotGame.BuildPolicy.props) as error RS0030.
+//
+// Reflection for diagnostics (a type name in a trace, an exception message or a crash report)
+// goes through a DiagnosticInfo, the one approved place: the framework's own, and one of its own
+// in code built on it. Anything else deliberate is suppressed at the use, with a reason:
+//
+//     #pragma warning disable RS0030 // Builds a game once, not per frame
+//     ...
+//     #pragma warning restore RS0030
+//
+// Entries are documentation comment IDs; a method needs one entry per overload. new T() calls
+// Activator.CreateInstance<T>() without naming it, so it can't be banned here: pass a factory.
+
+// LINQ
+T:System.Linq.Enumerable;LINQ allocates and is slower than a loop; write the loop
+T:System.Linq.Queryable;LINQ allocates and is slower than a loop; write the loop
+T:System.Linq.ParallelEnumerable;LINQ allocates and is slower than a loop; write the loop
+N:System.Linq.Expressions;Expression trees use reflection and compile code at run time
+
+// Reflection. The System.Reflection namespace itself is not banned: the SDK generates assembly
+// attributes from it. Type.Name is MemberInfo.Name.
+M:System.Object.GetType;Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable: use pattern matching or a virtual member
+T:System.Activator;Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable: use a factory
+T:System.Reflection.MemberInfo;Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+T:System.Reflection.Assembly;Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+T:System.Reflection.AssemblyName;Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+T:System.Reflection.MethodBase;Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+T:System.Reflection.MethodInfo;Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+T:System.Reflection.ConstructorInfo;Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+T:System.Reflection.PropertyInfo;Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+T:System.Reflection.FieldInfo;Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+T:System.Reflection.EventInfo;Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+T:System.Reflection.ParameterInfo;Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+T:System.Reflection.TypeInfo;Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+T:System.Reflection.CustomAttributeExtensions;Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+T:System.Reflection.IntrospectionExtensions;Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+T:System.Reflection.RuntimeReflectionExtensions;Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+N:System.Reflection.Emit;Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+P:System.Type.Assembly;Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+P:System.Type.AssemblyQualifiedName;Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+P:System.Type.BaseType;Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+P:System.Type.FullName;Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+P:System.Type.Namespace;Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.IsAssignableFrom(System.Type);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.IsAssignableTo(System.Type);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.IsInstanceOfType(System.Object);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetGenericArguments;Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetGenericTypeDefinition;Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetElementType;Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.FindInterfaces(System.Reflection.TypeFilter,System.Object);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.FindMembers(System.Reflection.MemberTypes,System.Reflection.BindingFlags,System.Reflection.MemberFilter,System.Object);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetConstructor(System.Reflection.BindingFlags,System.Reflection.Binder,System.Reflection.CallingConventions,System.Type[],System.Reflection.ParameterModifier[]);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetConstructor(System.Reflection.BindingFlags,System.Reflection.Binder,System.Type[],System.Reflection.ParameterModifier[]);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetConstructor(System.Reflection.BindingFlags,System.Type[]);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetConstructor(System.Type[]);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetConstructors;Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetConstructors(System.Reflection.BindingFlags);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetDefaultMembers;Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetEnumName(System.Object);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetEnumNames;Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetEnumValues;Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetEvent(System.String);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetEvent(System.String,System.Reflection.BindingFlags);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetEvents;Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetEvents(System.Reflection.BindingFlags);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetField(System.String);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetField(System.String,System.Reflection.BindingFlags);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetFields;Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetFields(System.Reflection.BindingFlags);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetInterface(System.String);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetInterface(System.String,System.Boolean);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetInterfaces;Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetMember(System.String);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetMember(System.String,System.Reflection.BindingFlags);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetMember(System.String,System.Reflection.MemberTypes,System.Reflection.BindingFlags);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetMembers;Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetMembers(System.Reflection.BindingFlags);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetMethod(System.String);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetMethod(System.String,System.Int32,System.Reflection.BindingFlags,System.Reflection.Binder,System.Reflection.CallingConventions,System.Type[],System.Reflection.ParameterModifier[]);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetMethod(System.String,System.Int32,System.Reflection.BindingFlags,System.Reflection.Binder,System.Type[],System.Reflection.ParameterModifier[]);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetMethod(System.String,System.Int32,System.Reflection.BindingFlags,System.Type[]);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetMethod(System.String,System.Int32,System.Type[]);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetMethod(System.String,System.Int32,System.Type[],System.Reflection.ParameterModifier[]);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetMethod(System.String,System.Reflection.BindingFlags);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetMethod(System.String,System.Reflection.BindingFlags,System.Reflection.Binder,System.Reflection.CallingConventions,System.Type[],System.Reflection.ParameterModifier[]);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetMethod(System.String,System.Reflection.BindingFlags,System.Reflection.Binder,System.Type[],System.Reflection.ParameterModifier[]);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetMethod(System.String,System.Reflection.BindingFlags,System.Type[]);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetMethod(System.String,System.Type[]);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetMethod(System.String,System.Type[],System.Reflection.ParameterModifier[]);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetMethods;Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetMethods(System.Reflection.BindingFlags);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetNestedType(System.String);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetNestedType(System.String,System.Reflection.BindingFlags);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetNestedTypes;Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetNestedTypes(System.Reflection.BindingFlags);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetProperties;Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetProperties(System.Reflection.BindingFlags);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetProperty(System.String);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetProperty(System.String,System.Reflection.BindingFlags);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetProperty(System.String,System.Reflection.BindingFlags,System.Reflection.Binder,System.Type,System.Type[],System.Reflection.ParameterModifier[]);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetProperty(System.String,System.Type);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetProperty(System.String,System.Type,System.Type[]);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetProperty(System.String,System.Type,System.Type[],System.Reflection.ParameterModifier[]);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetProperty(System.String,System.Type[]);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetType(System.String);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetType(System.String,System.Boolean);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetType(System.String,System.Boolean,System.Boolean);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetType(System.String,System.Func{System.Reflection.AssemblyName,System.Reflection.Assembly},System.Func{System.Reflection.Assembly,System.String,System.Boolean,System.Type});Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetType(System.String,System.Func{System.Reflection.AssemblyName,System.Reflection.Assembly},System.Func{System.Reflection.Assembly,System.String,System.Boolean,System.Type},System.Boolean);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.GetType(System.String,System.Func{System.Reflection.AssemblyName,System.Reflection.Assembly},System.Func{System.Reflection.Assembly,System.String,System.Boolean,System.Type},System.Boolean,System.Boolean);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.InvokeMember(System.String,System.Reflection.BindingFlags,System.Reflection.Binder,System.Object,System.Object[]);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.InvokeMember(System.String,System.Reflection.BindingFlags,System.Reflection.Binder,System.Object,System.Object[],System.Globalization.CultureInfo);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.InvokeMember(System.String,System.Reflection.BindingFlags,System.Reflection.Binder,System.Object,System.Object[],System.Reflection.ParameterModifier[],System.Globalization.CultureInfo,System.String[]);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+M:System.Type.MakeGenericType(System.Type[]);Reflection hinders trimming and costs performance; suppress RS0030 with a reason only where it is unavoidable
+
+// Enum reflection
+M:System.Enum.Format(System.Type,System.Object,System.String);Enum reflection; use the values directly, a switch, or a range check
+M:System.Enum.GetName(System.Type,System.Object);Enum reflection; use the values directly, a switch, or a range check
+M:System.Enum.GetName``1(``0);Enum reflection; use the values directly, a switch, or a range check
+M:System.Enum.GetNames(System.Type);Enum reflection; use the values directly, a switch, or a range check
+M:System.Enum.GetNames``1;Enum reflection; use the values directly, a switch, or a range check
+M:System.Enum.GetUnderlyingType(System.Type);Enum reflection; use the values directly, a switch, or a range check
+M:System.Enum.GetValues(System.Type);Enum reflection; use the values directly, a switch, or a range check
+M:System.Enum.GetValuesAsUnderlyingType(System.Type);Enum reflection; use the values directly, a switch, or a range check
+M:System.Enum.GetValuesAsUnderlyingType``1;Enum reflection; use the values directly, a switch, or a range check
+M:System.Enum.GetValues``1;Enum reflection; use the values directly, a switch, or a range check
+M:System.Enum.IsDefined(System.Type,System.Object);Enum reflection; use the values directly, a switch, or a range check
+M:System.Enum.IsDefined``1(``0);Enum reflection; use the values directly, a switch, or a range check
+M:System.Enum.Parse(System.Type,System.ReadOnlySpan{System.Char});Enum reflection; use the values directly, a switch, or a range check
+M:System.Enum.Parse(System.Type,System.ReadOnlySpan{System.Char},System.Boolean);Enum reflection; use the values directly, a switch, or a range check
+M:System.Enum.Parse(System.Type,System.String);Enum reflection; use the values directly, a switch, or a range check
+M:System.Enum.Parse(System.Type,System.String,System.Boolean);Enum reflection; use the values directly, a switch, or a range check
+M:System.Enum.Parse``1(System.ReadOnlySpan{System.Char});Enum reflection; use the values directly, a switch, or a range check
+M:System.Enum.Parse``1(System.ReadOnlySpan{System.Char},System.Boolean);Enum reflection; use the values directly, a switch, or a range check
+M:System.Enum.Parse``1(System.String);Enum reflection; use the values directly, a switch, or a range check
+M:System.Enum.Parse``1(System.String,System.Boolean);Enum reflection; use the values directly, a switch, or a range check
+M:System.Enum.TryParse(System.Type,System.ReadOnlySpan{System.Char},System.Boolean,System.Object@);Enum reflection; use the values directly, a switch, or a range check
+M:System.Enum.TryParse(System.Type,System.ReadOnlySpan{System.Char},System.Object@);Enum reflection; use the values directly, a switch, or a range check
+M:System.Enum.TryParse(System.Type,System.String,System.Boolean,System.Object@);Enum reflection; use the values directly, a switch, or a range check
+M:System.Enum.TryParse(System.Type,System.String,System.Object@);Enum reflection; use the values directly, a switch, or a range check
+M:System.Enum.TryParse``1(System.ReadOnlySpan{System.Char},System.Boolean,``0@);Enum reflection; use the values directly, a switch, or a range check
+M:System.Enum.TryParse``1(System.ReadOnlySpan{System.Char},``0@);Enum reflection; use the values directly, a switch, or a range check
+M:System.Enum.TryParse``1(System.String,System.Boolean,``0@);Enum reflection; use the values directly, a switch, or a range check
+M:System.Enum.TryParse``1(System.String,``0@);Enum reflection; use the values directly, a switch, or a range check

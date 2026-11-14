@@ -1,0 +1,25 @@
+<Project>
+
+    <!-- Settings every project here shares -->
+    <PropertyGroup>
+        <!-- The DotGame packages' version, the same for all of them -->
+        <DotGameVersion>@VERSION@</DotGameVersion>
+        <Nullable>enable</Nullable>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <InvariantGlobalization>true</InvariantGlobalization>
+        <InvariantTimezone>true</InvariantTimezone>
+    </PropertyGroup>
+
+    <!-- Smaller, faster Release builds: trimmed, without features a game doesn't use -->
+    <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+        <!-- Trimmed in full: iOS asks with MtouchLink, its SDK refusing PublishTrimmed (since 27.2) -->
+        <PublishTrimmed Condition="!$(MSBuildProjectName.EndsWith('.iOS'))">true</PublishTrimmed>
+        <TrimMode Condition="!$(MSBuildProjectName.EndsWith('.iOS'))">full</TrimMode>
+        <MtouchLink Condition="$(MSBuildProjectName.EndsWith('.iOS'))">Full</MtouchLink>
+        <EventSourceSupport>false</EventSourceSupport>
+        <UseSystemResourceKeys>true</UseSystemResourceKeys>
+        <MetadataUpdaterSupport>false</MetadataUpdaterSupport>
+        <HttpActivityPropagationSupport>false</HttpActivityPropagationSupport>
+    </PropertyGroup>
+
+</Project>

@@ -1,0 +1,10 @@
+<Solution>
+    <Folder Name="/Solution Items/">
+        <File Path="Directory.Build.props" />
+    </Folder>
+    <Project Path="MyGame/MyGame.shproj" />
+    <Project Path="MyGame.Desktop/MyGame.Desktop.csproj" />
+    <Project Path="MyGame.WebGL/MyGame.WebGL.csproj" />
+    <Project Path="MyGame.Android/MyGame.Android.csproj" />
+    <Project Path="MyGame.iOS/MyGame.iOS.csproj" />
+</Solution>

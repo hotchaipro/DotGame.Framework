@@ -1,0 +1,63 @@
+<Project>
+
+    <!--
+        DotGame.Framework.Build, the framework's content pipeline, from a package: the same targets
+        as from source, with the build tool and the MSBuild tasks prebuilt in the package rather than
+        built on demand.
+
+        The external tools (slangc, spirv-cross, spirv2dxil, astcenc) come in one package per
+        build machine (DotGame.Framework.Build.Tools.<rid>). A package can't choose its dependencies by
+        the machine restoring it, so this package's targets add the build machine's to the restore as PackageDownloads: NuGet puts them in its packages
+        folder without making them dependencies, and nothing in them reaches a game. Restore imports
+        this package's files once it has restored the package, so every restore after the first fetches
+        the tools; the first build after the first restore fetches them itself, through NuGet (see
+        DotGame.Framework.Build.targets).
+
+        This file sets the tool paths the content pipeline reads, before the pipeline's
+        ExternalTools.props gives them its defaults. A project that sets one itself keeps its own.
+
+        Properties a project may set:
+            DotGameBuildRuntimeIdentifier   The build machine (default: this one): win-x64, win-arm64,
+                                                                            osx-arm64, linux-x64 or linux-arm64.
+            DotGameRestoreTools             false to restore no tool packages (tools from PATH instead).
+    -->
+    <PropertyGroup>
+        <ContentPipelineBuildTool Condition="'$(ContentPipelineBuildTool)' == ''">$(MSBuildThisFileDirectory)..\pipeline\tool\DotGame.Framework.ContentPipeline.BuildTool.dll</ContentPipelineBuildTool>
+        <FrameworkContentPipelineTasksAssembly Condition="'$(FrameworkContentPipelineTasksAssembly)' == ''">$(MSBuildThisFileDirectory)..\pipeline\tasks\DotGame.Framework.ContentPipeline.Tasks.dll</FrameworkContentPipelineTasksAssembly>
+    </PropertyGroup>
+
+    <PropertyGroup>
+        <!-- The tool packages always have this package's version, so the tools match the pipeline -->
+        <_DotGameToolsVersion>@VERSION@</_DotGameToolsVersion>
+
+        <_DotGameBuildOS Condition="$([MSBuild]::IsOSPlatform('Windows'))">win</_DotGameBuildOS>
+        <_DotGameBuildOS Condition="$([MSBuild]::IsOSPlatform('OSX'))">osx</_DotGameBuildOS>
+        <_DotGameBuildOS Condition="$([MSBuild]::IsOSPlatform('Linux'))">linux</_DotGameBuildOS>
+        <_DotGameBuildArch>$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString().ToLowerInvariant())</_DotGameBuildArch>
+        <DotGameBuildRuntimeIdentifier Condition="'$(DotGameBuildRuntimeIdentifier)' == ''">$(_DotGameBuildOS)-$(_DotGameBuildArch)</DotGameBuildRuntimeIdentifier>
+        <_DotGameBuildMachineSupported Condition="'$(DotGameBuildRuntimeIdentifier)' == 'win-x64' or '$(DotGameBuildRuntimeIdentifier)' == 'win-arm64' or '$(DotGameBuildRuntimeIdentifier)' == 'osx-arm64' or '$(DotGameBuildRuntimeIdentifier)' == 'linux-x64' or '$(DotGameBuildRuntimeIdentifier)' == 'linux-arm64'">true</_DotGameBuildMachineSupported>
+        <_DotGameExe Condition="$(DotGameBuildRuntimeIdentifier.StartsWith('win-'))">.exe</_DotGameExe>
+
+        <!--
+            NuGet's packages folder, where restore puts the tool packages: RestorePackagesPath, then
+            NUGET_PACKAGES, then .nuget/packages in the home folder, as NuGet works it out (restore's own
+            NuGetPackageRoot isn't set while restore evaluates the project).
+        -->
+        <_DotGamePackages Condition="'$(RestorePackagesPath)' != ''">$(RestorePackagesPath)</_DotGamePackages>
+        <_DotGamePackages Condition="'$(_DotGamePackages)' == '' and '$(NUGET_PACKAGES)' != ''">$(NUGET_PACKAGES)</_DotGamePackages>
+        <_DotGamePackages Condition="'$(_DotGamePackages)' == '' and $([MSBuild]::IsOSPlatform('Windows'))">$(USERPROFILE)\.nuget\packages</_DotGamePackages>
+        <_DotGamePackages Condition="'$(_DotGamePackages)' == ''">$(HOME)/.nuget/packages</_DotGamePackages>
+        <_DotGamePackages>$([MSBuild]::EnsureTrailingSlash('$([System.IO.Path]::GetFullPath('$(_DotGamePackages)', '$(MSBuildProjectDirectory)'))'))</_DotGamePackages>
+
+        <_DotGameToolsPackage>DotGame.Framework.Build.Tools.$(DotGameBuildRuntimeIdentifier)</_DotGameToolsPackage>
+        <DotGameToolsDir>$(_DotGamePackages)$(_DotGameToolsPackage.ToLowerInvariant())/$(_DotGameToolsVersion.ToLowerInvariant())/tools/</DotGameToolsDir>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(DotGameRestoreTools)' != 'false' and '$(_DotGameBuildMachineSupported)' == 'true'">
+        <SlangCExe Condition="'$(SlangCExe)' == ''">$(DotGameToolsDir)slangc$(_DotGameExe)</SlangCExe>
+        <SpirvCrossExe Condition="'$(SpirvCrossExe)' == ''">$(DotGameToolsDir)spirv-cross$(_DotGameExe)</SpirvCrossExe>
+        <Spirv2DxilExe Condition="'$(Spirv2DxilExe)' == ''">$(DotGameToolsDir)spirv2dxil$(_DotGameExe)</Spirv2DxilExe>
+        <AstcEncExe Condition="'$(AstcEncExe)' == ''">$(DotGameToolsDir)astcenc$(_DotGameExe)</AstcEncExe>
+    </PropertyGroup>
+
+</Project>

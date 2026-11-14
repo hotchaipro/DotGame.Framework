@@ -1,0 +1,65 @@
+<Project>
+
+    <!--
+        Older browsers: the runtime's wasm uses WebAssembly exception handling as first shipped (try,
+        catch, rethrow), which every browser with WebAssembly SIMD runs (Safari 16.4, Chrome 91,
+        Firefox 89), instead of the standard's final form (try_table and exnref), which only Safari
+        18.4, Chrome 137 and Firefox 131 run. .NET 11 links the final form by translating the old
+        one: its runtime's libraries are compiled with the old form, and so is the AOT code without
+        the translation. Browsers that have both run either. The runtime's JavaScript asserts the
+        final form whenever the build has exception handling (WASM_ENABLE_EH, which feeds only that
+        assert), so it's off here. Exceptions in JavaScript instead (WasmEnableExceptionHandling=false)
+        don't build with AOT on .NET 11.0.0: clang crashes.
+
+        A game's web project links the runtime itself, or, with AOT, in its nested publish of
+        DotGame.Framework.WebGL, so both import this. DotGameWebLegacyExceptions=false links the
+        final form.
+    -->
+    <PropertyGroup>
+        <DotGameWebLegacyExceptions Condition="'$(DotGameWebLegacyExceptions)' == ''">true</DotGameWebLegacyExceptions>
+        <_DotGameLegacyWasmEHSource>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', 'native', 'wasm-legacy-eh.cpp'))</_DotGameLegacyWasmEHSource>
+    </PropertyGroup>
+
+    <Target Name="_DotGameLegacyWasmExceptions"
+            AfterTargets="_PrepareForBrowserWasmBuildNative"
+            Condition="'$(DotGameWebLegacyExceptions)' == 'true' and '$(WasmEnableExceptionHandling)' != 'false'">
+        <PropertyGroup>
+            <_WasmDefaultFlags>$(_WasmDefaultFlags.Replace('WASM_LEGACY_EXCEPTIONS=0', 'WASM_LEGACY_EXCEPTIONS=1'))</_WasmDefaultFlags>
+        </PropertyGroup>
+        <!-- NOTE: The SDK's target copies the common flags into the compile and link flags itself -->
+        <ItemGroup>
+            <_EmccCommonFlags Remove="-s WASM_LEGACY_EXCEPTIONS=0" />
+            <_EmccCommonFlags Include="-s WASM_LEGACY_EXCEPTIONS=1" />
+            <_EmccCFlags Remove="-s WASM_LEGACY_EXCEPTIONS=0" />
+            <_EmccCFlags Include="-s WASM_LEGACY_EXCEPTIONS=1" />
+            <_EmccLDFlags Remove="-s WASM_LEGACY_EXCEPTIONS=0" />
+            <_EmccLDFlags Include="-s WASM_LEGACY_EXCEPTIONS=1" />
+            <EmscriptenEnvVars Remove="WASM_ENABLE_EH=1" />
+            <EmscriptenEnvVars Include="WASM_ENABLE_EH=0" />
+        </ItemGroup>
+    </Target>
+
+    <!--
+        The runtime pack's one object compiled with the final form (libmono-wasm-eh-wasm.a's C++
+        throw and catch), compiled again with the first: an object is always linked, so its
+        definitions are the ones used and the archive's member isn't pulled in.
+    -->
+    <Target Name="_DotGameCompileLegacyWasmEH"
+            AfterTargets="_DotGameLegacyWasmExceptions"
+            Condition="'$(DotGameWebLegacyExceptions)' == 'true' and '$(WasmEnableExceptionHandling)' != 'false'"
+            Inputs="$(_DotGameLegacyWasmEHSource);$(MSBuildThisFileFullPath)"
+            Outputs="$(_WasmIntermediateOutputPath)wasm-legacy-eh.o">
+        <MakeDir Directories="$(_WasmIntermediateOutputPath)" />
+        <Exec Command='emcc "@$(_WasmDefaultFlagsRsp)" $(_WasmDefaultFlags) -O2 -c "$(_DotGameLegacyWasmEHSource)" -o "$(_WasmIntermediateOutputPath)wasm-legacy-eh.o"'
+              EnvironmentVariables="@(EmscriptenEnvVars)" />
+    </Target>
+
+    <Target Name="_DotGameLinkLegacyWasmEH"
+            AfterTargets="_DotGameCompileLegacyWasmEH"
+            Condition="'$(DotGameWebLegacyExceptions)' == 'true' and '$(WasmEnableExceptionHandling)' != 'false'">
+        <ItemGroup>
+            <_WasmNativeFileForLinking Include="$(_WasmIntermediateOutputPath)wasm-legacy-eh.o" />
+        </ItemGroup>
+    </Target>
+
+</Project>

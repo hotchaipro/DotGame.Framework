@@ -1,0 +1,52 @@
+<Project>
+
+    <!--
+        The web platform's JavaScript (_dotgame/*.js), registered at the game's build as the game's own
+        static web assets, as the content pipeline registers content. From source, the WebGL project
+        contributes them as a referenced project's assets; packed the way the WebAssembly SDK packs a
+        library, the page asked for an unfingerprinted _dotgame/main.js, which returned 404, and the
+        framework's files were published twice.
+        They keep the paths and fingerprints they have from source: _dotgame/<name>.<fingerprint>.js.
+    -->
+    <PropertyGroup>
+        <ResolveStaticWebAssetsInputsDependsOn>
+            $(ResolveStaticWebAssetsInputsDependsOn);
+            _DotGameRegisterWebScripts;
+        </ResolveStaticWebAssetsInputsDependsOn>
+    </PropertyGroup>
+
+    <Target Name="_DotGameRegisterWebScripts" Condition="'$(StaticWebAssetsSdkBuildTasksAssembly)' != ''">
+        <PropertyGroup>
+            <_DotGameWebScriptsRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\web\'))</_DotGameWebScriptsRoot>
+        </PropertyGroup>
+        <ItemGroup>
+            <_DotGameWebScript Include="$(_DotGameWebScriptsRoot)_dotgame\*.js" />
+            <_DotGameWebScriptCandidate Include="@(_DotGameWebScript)" RelativePath="_dotgame/%(Filename)#[.{fingerprint}]!%(Extension)" />
+        </ItemGroup>
+
+        <DefineStaticWebAssets
+            CandidateAssets="@(_DotGameWebScriptCandidate)"
+            SourceType="Computed"
+            SourceId="$(PackageId)"
+            ContentRoot="$(_DotGameWebScriptsRoot)"
+            BasePath="$(StaticWebAssetBasePath)"
+            AssetKind="All"
+            AssetMode="CurrentProject"
+            AssetRole="Primary"
+            AssetMergeSource="$(StaticWebAssetMergeTarget)"
+            FingerprintCandidates="false"
+            CopyToOutputDirectory="Never"
+            CopyToPublishDirectory="PreserveNewest">
+            <Output TaskParameter="Assets" ItemName="StaticWebAsset" />
+            <Output TaskParameter="Assets" ItemName="_DotGameWebScriptAsset" />
+        </DefineStaticWebAssets>
+
+        <DefineStaticWebAssetEndpoints
+            CandidateAssets="@(_DotGameWebScriptAsset)"
+            ExistingEndpoints="@(StaticWebAssetEndpoint)"
+            ContentTypeMappings="@(StaticWebAssetContentTypeMapping)">
+            <Output TaskParameter="Endpoints" ItemName="StaticWebAssetEndpoint" />
+        </DefineStaticWebAssetEndpoints>
+    </Target>
+
+</Project>

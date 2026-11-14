@@ -1,0 +1,188 @@
+<Project>
+
+    <!--
+        ContentPipeline.android.targets
+
+        Android content processor commands.  Import this instead of
+        ContentPipeline.targets in projects that target Android (OpenGL ES).
+
+        Pipeline (commands of the DotGame.Framework.ContentPipeline.BuildTool
+        tool, see ContentPipeline.BuildTool.props):
+            Textures   *.png   → *.webp   texture  (lossless or lossy WebP, premultiplied alpha)
+                                                  → *.ktx2   texture  (GpuCompression: ASTC, premultiplied alpha)
+            Shaders    *.slang → *.glsl   shader  (combined GLSL ES 300)
+            Sound      *.wav   → *.wav/.flac/.opus  sound  (WAV or FLAC / Ogg Opus, 48 kHz)
+            Sound Bank *       → *.wav/.flac/.opus + *.json  sound      (a sound bank)
+            Music      *.flac  → *.opus   music  (Ogg Opus @ 48 kHz)
+
+        Processed content is registered as AndroidAsset items so the files
+        are packaged into the APK's assets/ folder and accessible at runtime
+        via Android.Content.Res.AssetManager.Open().
+
+        Customisation: override any <Type>ContentProcessorCommand property
+        in the consuming project before importing this file.
+
+        Tool paths are resolved by ExternalTools.props.  Override individual
+        tool locations by setting AstcEncExe, SlangCExe, or SpirvCrossExe
+        before import.
+    -->
+
+    <Import Project="ExternalTools.props" />
+
+    <!-- ──────── Texture: PNG → WebP (premultiplied alpha) ──────── -->
+
+    <!--
+        The texture command is a pure encoder; content caching is handled by the
+        shared MSBuild tasks (_TryRestoreFromContentCache / _SaveToContentCache
+        in ContentPipeline.targets), which derive the cache partition from the
+        normalized command template + the texture content version
+        (ContentVersions.props of the build tool).  While
+        Android encodes textures identically to desktop / WebGL it shares
+        cache entries; if it later switches to a different texture format
+        (e.g. KTX2/ASTC) the changed command self-forks a new partition, and
+        any argument change self-invalidates the cache automatically.
+    -->
+    <PropertyGroup Label="Android texture content processor (lossless)">
+        <TextureContentLosslessProcessorCommand Condition="'$(TextureContentLosslessProcessorCommand)' == ''">$(ContentPipelineBuildCommand) texture --compression Lossless --input &quot;{InputFile}&quot; --output &quot;{OutputFile}&quot; --premultiply-alpha {PremultiplyAlpha}</TextureContentLosslessProcessorCommand>
+        <TextureContentNearLosslessProcessorCommand Condition="'$(TextureContentNearLosslessProcessorCommand)' == ''">$(ContentPipelineBuildCommand) texture --compression Lossless --quality {Quality} --input &quot;{InputFile}&quot; --output &quot;{OutputFile}&quot; --premultiply-alpha {PremultiplyAlpha}</TextureContentNearLosslessProcessorCommand>
+        <TextureContentLosslessProcessorOutputExtension Condition="'$(TextureContentLosslessProcessorOutputExtension)' == ''">.webp</TextureContentLosslessProcessorOutputExtension>
+        <TextureContentNearLosslessProcessorOutputExtension Condition="'$(TextureContentNearLosslessProcessorOutputExtension)' == ''">.webp</TextureContentNearLosslessProcessorOutputExtension>
+    </PropertyGroup>
+
+    <!--
+        Textures that opt into GPU compression (GpuCompression="true") are
+        ASTC, which every iOS device (iOS 15 and later) and nearly every Android
+        device samples compressed: a quarter of RGBA8's memory or less, and
+        nothing to decode at load, but larger to download than lossy WebP.
+        Quality picks the block size (8-10: 4x4, 8 bits a pixel; 5-7: 6x6; 1-4:
+        8x8), in a KTX2 file.  Android decodes ASTC on the CPU on the few GPUs
+        without it.  Other lossy and lossless textures are WebP.
+    -->
+    <PropertyGroup Label="Android texture content processor (lossy)">
+        <TextureContentLossyProcessorCommand Condition="'$(TextureContentLossyProcessorCommand)' == ''">$(ContentPipelineBuildCommand) texture --compression Lossy --quality {Quality} --input &quot;{InputFile}&quot; --output &quot;{OutputFile}&quot; --premultiply-alpha {PremultiplyAlpha}</TextureContentLossyProcessorCommand>
+        <TextureContentLossyProcessorOutputExtension Condition="'$(TextureContentLossyProcessorOutputExtension)' == ''">.webp</TextureContentLossyProcessorOutputExtension>
+    </PropertyGroup>
+
+    <PropertyGroup Label="Android texture content processor (GPU compressed)">
+        <TextureContentGpuProcessorCommand Condition="'$(TextureContentGpuProcessorCommand)' == ''">$(ContentPipelineBuildCommand) texture --format ktx2 --gpu-compression astc --astcenc $(AstcEncPath) --compression Lossy --quality {Quality} --input &quot;{InputFile}&quot; --output &quot;{OutputFile}&quot; --intermediate-dir &quot;{IntermediateDir}&quot; --premultiply-alpha {PremultiplyAlpha}</TextureContentGpuProcessorCommand>
+        <TextureContentGpuProcessorOutputExtension Condition="'$(TextureContentGpuProcessorOutputExtension)' == ''">.ktx2</TextureContentGpuProcessorOutputExtension>
+    </PropertyGroup>
+
+    <!-- ──────── Shader: Slang → combined GLSL ES 300 ──────── -->
+
+    <PropertyGroup Label="Android shader content processor">
+        <ShaderContentProcessorCommand Condition="'$(ShaderContentProcessorCommand)' == ''">$(ContentPipelineBuildCommand) shader --shader-types glsl --slangc $(SlangCPath) --spirv-cross $(SpirvCrossPath) --input &quot;{InputFile}&quot; --output &quot;{OutputFile}&quot; --intermediate-dir &quot;{IntermediateDir}&quot;</ShaderContentProcessorCommand>
+        <ShaderContentProcessorOutputExtension Condition="'$(ShaderContentProcessorOutputExtension)' == ''">.glsl</ShaderContentProcessorOutputExtension>
+    </PropertyGroup>
+
+    <!-- ──────── Sound: WAV or FLAC (lossless, see the desktop targets) / Ogg Opus (lossy) ──────── -->
+
+    <!--
+        48 kHz, the rate most Android devices mix at: sounds load with only a
+        conversion to float, where 44.1 kHz content was resampled at every
+        load (a 55 s stereo bank on a Pixel 3a: 22-51 ms, against about
+        470 ms before).  Bank offsets fall on 48 kHz samples.  A device that
+        mixes at another rate still gets the sound resampled at load.
+    -->
+    <PropertyGroup Label="Android sound content sample rate">
+        <SoundContentSampleRate Condition="'$(SoundContentSampleRate)' == ''">48000</SoundContentSampleRate>
+    </PropertyGroup>
+
+    <PropertyGroup Label="Android sound content processor (lossless)">
+        <SoundContentFlacProcessorCommand Condition="'$(SoundContentFlacProcessorCommand)' == ''">$(ContentPipelineBuildCommand) sound --codec flac --compression Lossless --sample-rate $(SoundContentSampleRate) --input &quot;{InputFile}&quot; --output &quot;{OutputFile}&quot;</SoundContentFlacProcessorCommand>
+        <SoundContentFlacProcessorOutputExtension Condition="'$(SoundContentFlacProcessorOutputExtension)' == ''">.flac</SoundContentFlacProcessorOutputExtension>
+        <SoundContentWavProcessorCommand Condition="'$(SoundContentWavProcessorCommand)' == ''">$(ContentPipelineBuildCommand) sound --codec pcm_s16le --compression Lossless --sample-rate $(SoundContentSampleRate) --input &quot;{InputFile}&quot; --output &quot;{OutputFile}&quot;</SoundContentWavProcessorCommand>
+        <SoundContentWavProcessorOutputExtension Condition="'$(SoundContentWavProcessorOutputExtension)' == ''">.wav</SoundContentWavProcessorOutputExtension>
+    </PropertyGroup>
+
+    <PropertyGroup Label="Android sound content processor (lossy)">
+        <SoundContentLossyProcessorCommand Condition="'$(SoundContentLossyProcessorCommand)' == ''">$(ContentPipelineBuildCommand) sound --codec libopus --compression Lossy --quality {Quality} --sample-rate $(SoundContentSampleRate) --input &quot;{InputFile}&quot; --output &quot;{OutputFile}&quot;</SoundContentLossyProcessorCommand>
+        <SoundContentLossyProcessorOutputExtension Condition="'$(SoundContentLossyProcessorOutputExtension)' == ''">.opus</SoundContentLossyProcessorOutputExtension>
+    </PropertyGroup>
+
+    <!-- ──────── Music: FLAC/WAV → Ogg Opus @ 48 kHz ──────── -->
+
+    <!--
+        Ogg Opus at 48 kHz, decoded by DotGame.AudioCodecs (a port of libopus)
+        rather than MediaCodec, so loops are sample-exact and every
+        platform plays the same samples.  The channel count is intentionally NOT forced: mono
+        sources stay mono (music is decoded/streamed per-track, not summed
+        into a shared mixer buffer, so a uniform channel count is not
+        required).  The content manifest's Channels/SampleRate are probed
+        from this encoded output (see _ProbeMusicOutput) so they always
+        match the artifact the runtime decoder is built from.
+    -->
+    <PropertyGroup Label="Android music content processor">
+        <MusicContentProcessorCommand Condition="'$(MusicContentProcessorCommand)' == ''">$(ContentPipelineBuildCommand) music --codec libopus --sample-rate 48000 --quality {Quality} --input &quot;{InputFile}&quot; --output &quot;{OutputFile}&quot;</MusicContentProcessorCommand>
+        <MusicContentProcessorOutputExtension Condition="'$(MusicContentProcessorOutputExtension)' == ''">.opus</MusicContentProcessorOutputExtension>
+    </PropertyGroup>
+
+    <PropertyGroup>
+        <!--
+            The Android packaging targets (_GenerateAndroidAssetsDir,
+            _UpdateAndroidAssetsCache, etc.) consume @(AndroidAsset) directly
+            from the APK's assets/ folder.  Suppress the desktop-style copy
+            from the shared pipeline so it does not stage a duplicate set of
+            files under $(OutDir).
+        -->
+        <_ContentPipelineSkipOutputCopy>true</_ContentPipelineSkipOutputCopy>
+    </PropertyGroup>
+
+    <!--
+        The launch screen: drawables, colors and the DotGame.LaunchScreen theme, which the game's
+        activity theme inherits (parent="DotGame.LaunchScreen"). Its own parent is
+        $(LaunchScreenAndroidThemeParent).
+    -->
+    <PropertyGroup>
+        <LaunchScreenPlatform>android</LaunchScreenPlatform>
+        <LaunchScreenAndroidThemeParent Condition="'$(LaunchScreenAndroidThemeParent)' == ''">@android:style/Theme</LaunchScreenAndroidThemeParent>
+        <LaunchScreenPlatformArguments>--android-theme-parent &quot;$(LaunchScreenAndroidThemeParent)&quot;</LaunchScreenPlatformArguments>
+    </PropertyGroup>
+
+    <!-- Import the shared content pipeline infrastructure -->
+    <Import Project="ContentPipeline.targets" />
+
+    <!-- ──────── Android asset packaging ──────── -->
+
+    <!--
+        _RegisterContentAsAndroidAssets – collects all processed content
+        from the intermediate output directory and registers the files as
+        AndroidAsset items so they are packaged into the APK's assets/
+        folder and accessible at runtime via
+        Android.Content.Res.AssetManager.Open().
+
+        Hooking BeforeTargets="BeforeBuild" is not sufficient on .NET for
+        Android: Visual Studio's Run/Deploy and `dotnet publish` execute
+        the Android packaging targets (_GenerateAndroidAssetsDir,
+        _UpdateAndroidAssetsCache, _GeneratePackageManagerJava) which do
+        not pull BeforeBuild.  Hook them directly so processed content is
+        always registered before the assets/ folder is populated.
+    -->
+    <!--
+        _RegisterLaunchScreenAndroidResources – the launch screen's generated res/ files, as
+        AndroidResource items, before the resource paths are worked out.
+    -->
+    <Target Name="_RegisterLaunchScreenAndroidResources"
+                    DependsOnTargets="BuildContent"
+                    BeforeTargets="_ComputeAndroidResourcePaths"
+                    Condition="'@(LaunchScreen)' != ''">
+        <ItemGroup>
+            <_LaunchScreenAndroidResource Include="$(LaunchScreenResourceDir)**\*.*" />
+            <AndroidResource Include="@(_LaunchScreenAndroidResource)">
+                <Link>$(MonoAndroidResourcePrefix)\%(RecursiveDir)%(Filename)%(Extension)</Link>
+            </AndroidResource>
+        </ItemGroup>
+    </Target>
+
+    <Target Name="_RegisterContentAsAndroidAssets"
+                    DependsOnTargets="BuildContent"
+                    BeforeTargets="_GenerateAndroidAssetsDir;_UpdateAndroidAssetsCache;_GeneratePackageManagerJava;BeforeBuild">
+        <ItemGroup>
+            <_ContentPipelineAndroidAsset Include="$(ContentOutputDir)**\*.*" />
+            <AndroidAsset Include="@(_ContentPipelineAndroidAsset)">
+                <Link>%(RecursiveDir)%(Filename)%(Extension)</Link>
+            </AndroidAsset>
+        </ItemGroup>
+    </Target>
+
+</Project>

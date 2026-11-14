@@ -1,0 +1,3 @@
+This file is DataContent: copied into the build as it is.
+Read it with Content.OpenStream, by its path under Content.
+Use data files for levels, dialog, tuning values and the like.

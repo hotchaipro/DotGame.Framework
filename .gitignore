@@ -1,0 +1,29 @@
+# Build output
+bin/
+obj/
+artifacts/
+*.binlog
+
+# The content pipeline's per-project cache
+.dotgame/
+
+# Editors and IDEs
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+# Visual Studio's launch profile for the WebGL platform library, which isn't run
+platform/webgl/Properties/
+
+# Test results and packages
+TestResults/
+*.nupkg
+*.snupkg
+
+# Operating systems
+.DS_Store
+Thumbs.db
+desktop.ini
+# Native build trees (the built libraries are checked in)
+native/sdl3/build/

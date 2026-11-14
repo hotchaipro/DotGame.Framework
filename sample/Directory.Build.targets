@@ -1,0 +1,11 @@
+<Project>
+
+    <!--
+        Not in a game's: the sample builds the framework from its source, so its build files (the content
+        pipeline, and the platform's settings) come from the framework's include here, where a game's come
+        from its DotGame packages. It adds each platform's project reference to the framework's platform
+        project, as a game has a package reference to DotGame.Framework.<Platform>.
+    -->
+    <Import Project="..\packaging\build\DotGame.Framework.targets" />
+
+</Project>

@@ -1,0 +1,102 @@
+<Project>
+
+    <!--
+        DotGame.Framework.targets
+
+        The one include for a game built on the framework, on every platform:
+
+            <Import Project="<DotGame folder>\packaging\build\DotGame.Framework.targets" />
+
+        It adds the framework for the project's platform (a project reference to
+        DotGame.Framework.<Platform>) and the framework content pipeline
+        (TextureContent, ShaderContent, SoundContent, MusicContent, DataContent).
+        A game built on a library with an include of its own imports that include
+        instead, which imports this one.
+
+        The layout mirrors the future NuGet package (build\<PackageId>.targets is
+        imported automatically from a PackageReference).
+
+        Properties (optional, set before the Import):
+            DotGamePlatform   webgl | android | ios | desktop.  Detected from the
+                                                        project when empty: browser-wasm or the WebAssembly
+                                                        SDK -> webgl, -android / -ios target frameworks ->
+                                                        android / ios, anything else -> desktop.
+            DotGameIsolatedBuilds  true: build DotGame's projects in the game's own folder (see below).
+            DotGameBuildRoot       The folder to build them in instead, if set.
+    -->
+
+    <PropertyGroup>
+        <_DotGameFrameworkImported>true</_DotGameFrameworkImported>
+        <!-- The framework's doc comment files are for developers, so they're not published with a game -->
+        <PublishReferencesDocumentationFiles Condition="'$(PublishReferencesDocumentationFiles)' == ''">false</PublishReferencesDocumentationFiles>
+        <_DotGameRoot>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)..\..'))</_DotGameRoot>
+
+        <_DotGameTargetPlatform Condition="'$(TargetFramework)' != ''">$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)'))</_DotGameTargetPlatform>
+        <DotGamePlatform Condition="'$(DotGamePlatform)' == '' and ('$(UsingMicrosoftNETSdkWebAssembly)' == 'true' or '$(RuntimeIdentifier)' == 'browser-wasm')">webgl</DotGamePlatform>
+        <DotGamePlatform Condition="'$(DotGamePlatform)' == '' and '$(_DotGameTargetPlatform)' == 'android'">android</DotGamePlatform>
+        <DotGamePlatform Condition="'$(DotGamePlatform)' == '' and '$(_DotGameTargetPlatform)' == 'ios'">ios</DotGamePlatform>
+        <DotGamePlatform Condition="'$(DotGamePlatform)' == ''">desktop</DotGamePlatform>
+
+        <_DotGamePlatformProject Condition="'$(DotGamePlatform)' == 'webgl'">$(_DotGameRoot)platform\webgl\DotGame.Framework.WebGL.csproj</_DotGamePlatformProject>
+        <_DotGamePlatformProject Condition="'$(DotGamePlatform)' == 'android'">$(_DotGameRoot)platform\android\DotGame.Framework.Android.csproj</_DotGamePlatformProject>
+        <_DotGamePlatformProject Condition="'$(DotGamePlatform)' == 'ios'">$(_DotGameRoot)platform\ios\DotGame.Framework.iOS.csproj</_DotGamePlatformProject>
+        <_DotGamePlatformProject Condition="'$(DotGamePlatform)' == 'desktop'">$(_DotGameRoot)platform\desktop\DotGame.Framework.Desktop.csproj</_DotGamePlatformProject>
+
+        <!--
+            Where this game builds the DotGame projects it references (the platform project, the
+            framework, libraries built on it, the content pipelines and the analyzers). By default, in
+            their own folders, as any project reference is built, so an IDE builds them with the rest of
+            the solution. A machine that builds several games at once from the same DotGame clones sets
+            DotGameIsolatedBuilds=true (or DotGameBuildRoot): each game then builds them in its own
+            folder, passed down to them as a global property (see DotGame's Directory.Build.props, which
+            passes it on to their own references), so each has its own copies of DotGame's build output,
+            and of the analyzers and pipeline assemblies the build loads (which would otherwise be
+            locked by another game's build). An IDE doesn't build a solution's projects in a game's
+            folder, so this is for command-line builds.
+        -->
+        <DotGameBuildRoot Condition="'$(DotGameBuildRoot)' == '' and '$(DotGameIsolatedBuilds)' == 'true'">$(MSBuildProjectDirectory)\obj\DotGame\</DotGameBuildRoot>
+    </PropertyGroup>
+
+    <!--
+        A default for every project reference, so it also reaches the references the SDK adds
+        transitively (the framework and libraries built on it, through the platform project).
+    -->
+    <ItemDefinitionGroup Condition="'$(DotGameBuildRoot)' != ''">
+        <ProjectReference>
+            <AdditionalProperties>DotGameBuildRoot=$(DotGameBuildRoot)</AdditionalProperties>
+        </ProjectReference>
+    </ItemDefinitionGroup>
+
+    <!--
+        From source, the platform is a project reference, which brings the framework with it, and the
+        pipeline is imported. From packages (DotGamePackaged, set by the DotGame.Framework package), the
+        platform is the game's own package reference, and DotGame.Framework.Build imports the pipeline.
+    -->
+    <ItemGroup Condition="'$(DotGamePackaged)' != 'true'">
+        <ProjectReference Include="$(_DotGamePlatformProject)" />
+    </ItemGroup>
+
+    <Import Project="$(_DotGameRoot)pipeline\build\DotGame.Framework.ContentPipeline.targets"
+                    Condition="'$(_FrameworkContentPipelineImported)' != 'true' and '$(DotGamePackaged)' != 'true'" />
+
+    <!-- The framework's Debug behaviour, from the game's Configuration (DotGameDebug and the traces) -->
+    <Import Project="$(MSBuildThisFileDirectory)DotGame.Framework.Switches.targets"
+                    Condition="'$(_DotGameSwitchesImported)' != 'true'" />
+
+    <!--
+        iOS runs no code made at run time, on any build:
+
+        - DynamicCodeSupport=false tells the runtime so, and it takes its reflection-free paths. The iOS
+            SDK means to default it to false without the interpreter, but Microsoft.NET.ILLink.targets,
+            which NuGet imports first, defaults it to true. Release builds then emit invoke stubs and crash
+            at launch with ExecutionEngineException, while Debug, which runs on the interpreter, works.
+        - The managed-static registrar creates the managed wrappers of Objective-C objects (an NSString
+            constant, such as a UIKit notification's name) from code generated at build time, not by
+            calling their constructors through reflection.
+    -->
+    <PropertyGroup Condition="'$(DotGamePlatform)' == 'ios'">
+        <DynamicCodeSupport>false</DynamicCodeSupport>
+        <Registrar Condition="'$(Registrar)' == ''">managed-static</Registrar>
+    </PropertyGroup>
+
+</Project>

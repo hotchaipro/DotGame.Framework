@@ -1,0 +1,10 @@
+is_global = true
+
+# Build errors for game code (DotGame.BuildPolicy.props)
+
+# Banned APIs (BannedSymbols.txt); analyzers/ suppresses them in generated code
+dotnet_diagnostic.RS0030.severity = error
+
+# Trim and AOT analysis (IL2xxx and IL3xxx)
+dotnet_analyzer_diagnostic.category-Trimming.severity = error
+dotnet_analyzer_diagnostic.category-AOT.severity = error

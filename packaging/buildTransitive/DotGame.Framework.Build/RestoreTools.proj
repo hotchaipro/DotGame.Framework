@@ -1,0 +1,34 @@
+<Project>
+
+  <!--
+    Restores the build machine's tool package (DotGameToolsPackage, at DotGameToolsVersion) and
+    nothing else: run by DotGame.Framework.Build.targets on a game's first build, before restore
+    knows the package. Its intermediate files go in the game's obj folder (DotGameToolsRestoreDir),
+    none of the game's Directory.Build or central package files apply, and NuGet's settings come
+    from the game's folder (RestoreRootConfigDirectory).
+  -->
+  <PropertyGroup>
+    <BaseIntermediateOutputPath>$(DotGameToolsRestoreDir)</BaseIntermediateOutputPath>
+    <MSBuildProjectExtensionsPath>$(DotGameToolsRestoreDir)</MSBuildProjectExtensionsPath>
+    <ImportDirectoryBuildProps>false</ImportDirectoryBuildProps>
+    <ImportDirectoryBuildTargets>false</ImportDirectoryBuildTargets>
+    <ImportDirectoryPackagesProps>false</ImportDirectoryPackagesProps>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <RestoreLockedMode>false</RestoreLockedMode>
+    <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
+  </PropertyGroup>
+
+  <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <DisableImplicitFrameworkReferences>true</DisableImplicitFrameworkReferences>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageDownload Include="$(DotGameToolsPackage)" Version="[$(DotGameToolsVersion)]" />
+  </ItemGroup>
+
+  <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
+
+</Project>

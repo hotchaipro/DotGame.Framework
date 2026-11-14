@@ -1,0 +1,707 @@
+#nullable enable
+abstract DotGame.Framework.Audio.FadeCurve.InterpolateCore(float fromVolume, float toVolume, float t) -> float
+const DotGame.Framework.Input.InputService.MaxGamepads = 8 -> int
+DotGame.Framework.Angle
+DotGame.Framework.Angle.Angle() -> void
+DotGame.Framework.Angle.Cos.get -> float
+DotGame.Framework.Angle.Degrees.get -> float
+DotGame.Framework.Angle.Equals(DotGame.Framework.Angle other) -> bool
+DotGame.Framework.Angle.Radians.get -> float
+DotGame.Framework.Angle.Sin.get -> float
+DotGame.Framework.Angle.SinCos.get -> (float Sin, float Cos)
+DotGame.Framework.Angle.ToVector() -> System.Numerics.Vector2
+DotGame.Framework.Audio.AudioService
+DotGame.Framework.Audio.AudioService.CreateVoice(DotGame.Framework.Audio.Sound! sound) -> DotGame.Framework.Audio.SoundVoice!
+DotGame.Framework.Audio.AudioService.CreateVoice(DotGame.Framework.Audio.Sound! sound, System.TimeSpan offset, System.TimeSpan duration) -> DotGame.Framework.Audio.SoundVoice!
+DotGame.Framework.Audio.AudioService.CreateVolumeControl(DotGame.Framework.Audio.VolumeControl? parent = null) -> DotGame.Framework.Audio.VolumeControl!
+DotGame.Framework.Audio.AudioService.MasterVolumeControl.get -> DotGame.Framework.Audio.VolumeControl!
+DotGame.Framework.Audio.AudioService.ShouldPlayMusic.get -> bool
+DotGame.Framework.Audio.FadeCurve
+DotGame.Framework.Audio.FadeCurve.FadeCurve() -> void
+DotGame.Framework.Audio.Music
+DotGame.Framework.Audio.Music.Duration.get -> System.TimeSpan
+DotGame.Framework.Audio.Music.IsDisposed.get -> bool
+DotGame.Framework.Audio.Music.IsPaused.get -> bool
+DotGame.Framework.Audio.Music.IsPlaying.get -> bool
+DotGame.Framework.Audio.Music.Pause() -> void
+DotGame.Framework.Audio.Music.Play(System.TimeSpan? start = null, System.TimeSpan? end = null, System.TimeSpan? loopPoint = null, bool loop = false) -> void
+DotGame.Framework.Audio.Music.PrepareAsync(System.TimeSpan? start = null, System.TimeSpan? end = null, System.TimeSpan? loopPoint = null, bool loop = false) -> System.Threading.Tasks.Task!
+DotGame.Framework.Audio.Music.Resume() -> void
+DotGame.Framework.Audio.Music.Stop() -> void
+DotGame.Framework.Audio.Music.Unprepare() -> void
+DotGame.Framework.Audio.Music.VolumeControl.get -> DotGame.Framework.Audio.VolumeControl?
+DotGame.Framework.Audio.Music.VolumeControl.set -> void
+DotGame.Framework.Audio.Sound
+DotGame.Framework.Audio.Sound.Duration.get -> System.TimeSpan
+DotGame.Framework.Audio.Sound.IsDisposed.get -> bool
+DotGame.Framework.Audio.SoundVoice
+DotGame.Framework.Audio.SoundVoice.Dispose() -> void
+DotGame.Framework.Audio.SoundVoice.IsLooping.get -> bool
+DotGame.Framework.Audio.SoundVoice.IsPaused.get -> bool
+DotGame.Framework.Audio.SoundVoice.IsPlaying.get -> bool
+DotGame.Framework.Audio.SoundVoice.Pause() -> void
+DotGame.Framework.Audio.SoundVoice.Play(bool loop = false) -> void
+DotGame.Framework.Audio.SoundVoice.Resume() -> void
+DotGame.Framework.Audio.SoundVoice.Stop() -> void
+DotGame.Framework.Audio.SoundVoice.VolumeControl.get -> DotGame.Framework.Audio.VolumeControl?
+DotGame.Framework.Audio.SoundVoice.VolumeControl.set -> void
+DotGame.Framework.Audio.VolumeControl
+DotGame.Framework.Audio.VolumeControl.Dispose() -> void
+DotGame.Framework.Audio.VolumeControl.FadeTo(float toVolume, System.TimeSpan duration, DotGame.Framework.Audio.FadeCurve? curve = null) -> void
+DotGame.Framework.Audio.VolumeControl.Volume.get -> float
+DotGame.Framework.Audio.VolumeControl.Volume.set -> void
+DotGame.Framework.Color
+DotGame.Framework.Color.A.get -> float
+DotGame.Framework.Color.B.get -> float
+DotGame.Framework.Color.Color() -> void
+DotGame.Framework.Color.Color(float r, float g, float b, float a = 1) -> void
+DotGame.Framework.Color.Color(int r, int g, int b, int a = 255) -> void
+DotGame.Framework.Color.Equals(DotGame.Framework.Color other) -> bool
+DotGame.Framework.Color.G.get -> float
+DotGame.Framework.Color.R.get -> float
+DotGame.Framework.Color.ToColor32() -> DotGame.Framework.Color32
+DotGame.Framework.Color.WithAlpha(float alpha) -> DotGame.Framework.Color
+DotGame.Framework.Color32
+DotGame.Framework.Color32.A.get -> byte
+DotGame.Framework.Color32.B.get -> byte
+DotGame.Framework.Color32.Color32() -> void
+DotGame.Framework.Color32.Equals(DotGame.Framework.Color32 other) -> bool
+DotGame.Framework.Color32.G.get -> byte
+DotGame.Framework.Color32.R.get -> byte
+DotGame.Framework.Color32.ToColor() -> DotGame.Framework.Color
+DotGame.Framework.Content.ContentBundle
+DotGame.Framework.Content.ContentBundle.Add<TContent>(string! contentKey) -> void
+DotGame.Framework.Content.ContentBundle.LoadAsync() -> System.Threading.Tasks.Task!
+DotGame.Framework.Content.ContentBundle.Name.get -> string!
+DotGame.Framework.Content.ContentBundle.UnloadAsync() -> System.Threading.Tasks.Task!
+DotGame.Framework.Content.ContentBundleCollection
+DotGame.Framework.Content.ContentBundleCollection.Add(string! name) -> DotGame.Framework.Content.ContentBundle!
+DotGame.Framework.Content.ContentBundleCollection.GetEnumerator() -> System.Collections.Generic.IEnumerator<DotGame.Framework.Content.ContentBundle!>!
+DotGame.Framework.Content.ContentBundleCollection.this[string! name].get -> DotGame.Framework.Content.ContentBundle!
+DotGame.Framework.Content.ContentBundleCollection.TryGet(string! name, out DotGame.Framework.Content.ContentBundle? bundle) -> bool
+DotGame.Framework.Content.ContentManifest
+DotGame.Framework.Content.ContentManifest.Add(string! key, string! path, string? subKey = null, System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string!, string!>>? properties = null) -> void
+DotGame.Framework.Content.ContentManifest.ContentManifest(string! identity, string? basePath = null) -> void
+DotGame.Framework.Content.ContentService
+DotGame.Framework.Content.ContentService.Bundles.get -> DotGame.Framework.Content.ContentBundleCollection!
+DotGame.Framework.Content.ContentService.LoadAsync<TContent>(string! contentKey) -> System.Threading.Tasks.Task<TContent!>!
+DotGame.Framework.Content.ContentService.OpenStreamAsync(string! contentPath) -> System.Threading.Tasks.Task<System.IO.Stream!>!
+DotGame.Framework.Content.ContentService.RegisterLoader<TContent>(DotGame.Framework.Content.IContentLoader<TContent!>! contentLoader) -> void
+DotGame.Framework.Content.ContentService.ResolveContentPath(string! contentKey, string? subKey = null) -> string!
+DotGame.Framework.Content.ContentService.TryGet<TContent>(string! contentKey, out TContent? content) -> bool
+DotGame.Framework.Content.ContentService.UnloadAsync(DotGame.Framework.Content.IContent! content) -> System.Threading.Tasks.Task!
+DotGame.Framework.Content.ContentService.UnloadAsync(string! contentKey) -> System.Threading.Tasks.Task!
+DotGame.Framework.Content.IContent
+DotGame.Framework.Content.IContent.IsDisposed.get -> bool
+DotGame.Framework.Content.IContentLoader
+DotGame.Framework.Content.IContentLoader.LoadAsync(string! contentKey) -> System.Threading.Tasks.Task<object!>!
+DotGame.Framework.Content.IContentLoader<TContent>
+DotGame.Framework.Content.IContentLoader<TContent>.LoadAsync(string! contentKey) -> System.Threading.Tasks.Task<TContent!>!
+DotGame.Framework.Diagnostics.DiagnosticsService
+DotGame.Framework.Diagnostics.DiagnosticsService.MarkStartupMilestone(string! name, string? detail = null) -> void
+DotGame.Framework.Diagnostics.DiagnosticsService.StatsOverlayMode.get -> DotGame.Framework.Diagnostics.StatsOverlayMode
+DotGame.Framework.Diagnostics.DiagnosticsService.StatsOverlayMode.set -> void
+DotGame.Framework.Diagnostics.ExceptionExtensions
+DotGame.Framework.Diagnostics.FatalExceptionEventArgs
+DotGame.Framework.Diagnostics.FatalExceptionEventArgs.Exception.get -> System.Exception?
+DotGame.Framework.Diagnostics.FatalExceptionEventArgs.Tag.get -> uint
+DotGame.Framework.Diagnostics.ITraceWriter
+DotGame.Framework.Diagnostics.ITraceWriter.Write(DotGame.Framework.Diagnostics.TraceLevel level, uint tag, string? message, System.Exception? exception) -> void
+DotGame.Framework.Diagnostics.NonFatalExceptionEventArgs
+DotGame.Framework.Diagnostics.NonFatalExceptionEventArgs.Exception.get -> System.Exception!
+DotGame.Framework.Diagnostics.NonFatalExceptionEventArgs.Tag.get -> uint
+DotGame.Framework.Diagnostics.StatsOverlayMode
+DotGame.Framework.Diagnostics.StatsOverlayMode.Detailed = 2 -> DotGame.Framework.Diagnostics.StatsOverlayMode
+DotGame.Framework.Diagnostics.StatsOverlayMode.FpsOnly = 1 -> DotGame.Framework.Diagnostics.StatsOverlayMode
+DotGame.Framework.Diagnostics.StatsOverlayMode.Off = 0 -> DotGame.Framework.Diagnostics.StatsOverlayMode
+DotGame.Framework.Diagnostics.Trace
+DotGame.Framework.Diagnostics.TraceLevel
+DotGame.Framework.Diagnostics.TraceLevel.Error = 3 -> DotGame.Framework.Diagnostics.TraceLevel
+DotGame.Framework.Diagnostics.TraceLevel.Information = 1 -> DotGame.Framework.Diagnostics.TraceLevel
+DotGame.Framework.Diagnostics.TraceLevel.Verbose = 0 -> DotGame.Framework.Diagnostics.TraceLevel
+DotGame.Framework.Diagnostics.TraceLevel.Warning = 2 -> DotGame.Framework.Diagnostics.TraceLevel
+DotGame.Framework.Game
+DotGame.Framework.Game.Audio.get -> DotGame.Framework.Audio.AudioService!
+DotGame.Framework.Game.ClientBounds.get -> DotGame.Framework.RectangleInt
+DotGame.Framework.Game.Content.get -> DotGame.Framework.Content.ContentService!
+DotGame.Framework.Game.Diagnostics.get -> DotGame.Framework.Diagnostics.DiagnosticsService!
+DotGame.Framework.Game.DisplayDpi.get -> float
+DotGame.Framework.Game.Dispose() -> void
+DotGame.Framework.Game.FirstFrameDrawn.get -> System.Threading.Tasks.Task!
+DotGame.Framework.Game.FixedUpdateRate.get -> int?
+DotGame.Framework.Game.FixedUpdateRate.set -> void
+DotGame.Framework.Game.Game() -> void
+DotGame.Framework.Game.Graphics.get -> DotGame.Framework.Graphics.GraphicsService!
+DotGame.Framework.Game.Input.get -> DotGame.Framework.Input.InputService!
+DotGame.Framework.Game.IsActive.get -> bool
+DotGame.Framework.Game.PreferredFrameRate.get -> int?
+DotGame.Framework.Game.PreferredFrameRate.set -> void
+DotGame.Framework.Game.PreferredMultisampleCount.get -> int
+DotGame.Framework.Game.PreferredMultisampleCount.set -> void
+DotGame.Framework.Game.RunWhenInactive.get -> bool
+DotGame.Framework.Game.RunWhenInactive.set -> void
+DotGame.Framework.Game.SafeAreaBounds.get -> DotGame.Framework.RectangleInt
+DotGame.Framework.Game.Time.get -> DotGame.Framework.Time.TimeService!
+DotGame.Framework.Graphics.BlendMode
+DotGame.Framework.Graphics.BlendMode.Additive = 1 -> DotGame.Framework.Graphics.BlendMode
+DotGame.Framework.Graphics.BlendMode.Alpha = 0 -> DotGame.Framework.Graphics.BlendMode
+DotGame.Framework.Graphics.BlendMode.Multiply = 2 -> DotGame.Framework.Graphics.BlendMode
+DotGame.Framework.Graphics.BlendMode.Opaque = 4 -> DotGame.Framework.Graphics.BlendMode
+DotGame.Framework.Graphics.BlendMode.Screen = 3 -> DotGame.Framework.Graphics.BlendMode
+DotGame.Framework.Graphics.GraphicsService
+DotGame.Framework.Graphics.GraphicsService.Clear(DotGame.Framework.Color color) -> void
+DotGame.Framework.Graphics.GraphicsService.CreateRenderTexture(DotGame.Framework.Vector2Int size) -> DotGame.Framework.Graphics.RenderTexture!
+DotGame.Framework.Graphics.GraphicsService.CreateSpriteBatch() -> DotGame.Framework.Graphics.SpriteBatch!
+DotGame.Framework.Graphics.GraphicsService.CreateTexture(DotGame.Framework.Vector2Int size, System.ReadOnlySpan<DotGame.Framework.Color32> data) -> DotGame.Framework.Graphics.Texture!
+DotGame.Framework.Graphics.GraphicsService.DeviceReset -> System.EventHandler?
+DotGame.Framework.Graphics.GraphicsService.MultisampleCount.get -> int
+DotGame.Framework.Graphics.GraphicsService.ReadPixelsAsync(DotGame.Framework.Graphics.RenderTexture! renderTexture, System.Memory<DotGame.Framework.Color32> destination) -> System.Threading.Tasks.Task!
+DotGame.Framework.Graphics.GraphicsService.ScissorRectangle.get -> DotGame.Framework.RectangleInt?
+DotGame.Framework.Graphics.GraphicsService.SharedSpriteBatch.get -> DotGame.Framework.Graphics.SpriteBatch!
+DotGame.Framework.Graphics.GraphicsService.UseRenderTarget(DotGame.Framework.Graphics.RenderTexture! renderTexture) -> DotGame.Framework.Graphics.RenderTargetScope
+DotGame.Framework.Graphics.GraphicsService.UseScissor(DotGame.Framework.RectangleInt rectangle) -> DotGame.Framework.Graphics.ScissorScope
+DotGame.Framework.Graphics.RenderTargetScope
+DotGame.Framework.Graphics.RenderTargetScope.Dispose() -> void
+DotGame.Framework.Graphics.RenderTargetScope.RenderTargetScope() -> void
+DotGame.Framework.Graphics.RenderTexture
+DotGame.Framework.Graphics.Sampler
+DotGame.Framework.Graphics.Sampler.LinearClamp = 0 -> DotGame.Framework.Graphics.Sampler
+DotGame.Framework.Graphics.Sampler.LinearRepeat = 2 -> DotGame.Framework.Graphics.Sampler
+DotGame.Framework.Graphics.Sampler.PointClamp = 1 -> DotGame.Framework.Graphics.Sampler
+DotGame.Framework.Graphics.Sampler.PointRepeat = 3 -> DotGame.Framework.Graphics.Sampler
+DotGame.Framework.Graphics.ScissorScope
+DotGame.Framework.Graphics.ScissorScope.Dispose() -> void
+DotGame.Framework.Graphics.ScissorScope.ScissorScope() -> void
+DotGame.Framework.Graphics.Shader
+DotGame.Framework.Graphics.Shader.GetParameter(string! name) -> DotGame.Framework.Graphics.ShaderParameter!
+DotGame.Framework.Graphics.Shader.IsDisposed.get -> bool
+DotGame.Framework.Graphics.ShaderCustomData
+DotGame.Framework.Graphics.ShaderCustomData.Equals(DotGame.Framework.Graphics.ShaderCustomData other) -> bool
+DotGame.Framework.Graphics.ShaderCustomData.ShaderCustomData() -> void
+DotGame.Framework.Graphics.ShaderCustomData.ShaderCustomData(float x, float y, float z, float w) -> void
+DotGame.Framework.Graphics.ShaderParameter
+DotGame.Framework.Graphics.ShaderParameter.SetValue(float value) -> void
+DotGame.Framework.Graphics.ShaderParameter.SetValue(int value) -> void
+DotGame.Framework.Graphics.ShaderParameter.SetValue(System.Numerics.Vector2 value) -> void
+DotGame.Framework.Graphics.ShaderParameter.SetValue(System.Numerics.Vector4 value) -> void
+DotGame.Framework.Graphics.ShaderScope
+DotGame.Framework.Graphics.ShaderScope.Dispose() -> void
+DotGame.Framework.Graphics.ShaderScope.ShaderScope() -> void
+DotGame.Framework.Graphics.SpriteBatch
+DotGame.Framework.Graphics.SpriteBatch.Begin() -> DotGame.Framework.Graphics.SpriteBatchScope
+DotGame.Framework.Graphics.SpriteBatch.Begin(in DotGame.Framework.Graphics.SpriteBatchSettings settings) -> DotGame.Framework.Graphics.SpriteBatchScope
+DotGame.Framework.Graphics.SpriteBatch.Begin(System.Numerics.Matrix3x2 transform) -> DotGame.Framework.Graphics.SpriteBatchScope
+DotGame.Framework.Graphics.SpriteBatch.Dispose() -> void
+DotGame.Framework.Graphics.SpriteBatch.Draw(DotGame.Framework.Graphics.Texture! texture, System.Numerics.Vector2 position, DotGame.Framework.Color color, DotGame.Framework.Angle rotation = default(DotGame.Framework.Angle), System.Numerics.Vector2 origin = default(System.Numerics.Vector2), System.Numerics.Vector2? scale = null, DotGame.Framework.Rectangle? sourceRectangle = null, DotGame.Framework.Graphics.SpriteFlip flip = DotGame.Framework.Graphics.SpriteFlip.None, in DotGame.Framework.Graphics.ShaderCustomData customData = default(DotGame.Framework.Graphics.ShaderCustomData)) -> void
+DotGame.Framework.Graphics.SpriteBatch.DrawTriangles(DotGame.Framework.Graphics.Texture! texture, System.ReadOnlySpan<DotGame.Framework.Graphics.Vertex> vertices) -> void
+DotGame.Framework.Graphics.SpriteBatch.DrawTriangles(DotGame.Framework.Graphics.Texture! texture, System.ReadOnlySpan<DotGame.Framework.Graphics.Vertex> vertices, System.ReadOnlySpan<ushort> indices) -> void
+DotGame.Framework.Graphics.SpriteBatch.Graphics.get -> DotGame.Framework.Graphics.GraphicsService!
+DotGame.Framework.Graphics.SpriteBatch.IsDisposed.get -> bool
+DotGame.Framework.Graphics.SpriteBatch.UseRenderTarget(DotGame.Framework.Graphics.RenderTexture! renderTexture, in DotGame.Framework.Graphics.SpriteBatchSettings settings = default(DotGame.Framework.Graphics.SpriteBatchSettings)) -> DotGame.Framework.Graphics.RenderTargetScope
+DotGame.Framework.Graphics.SpriteBatch.UseScissor(DotGame.Framework.Rectangle rectangle) -> DotGame.Framework.Graphics.ScissorScope
+DotGame.Framework.Graphics.SpriteBatch.UseShader(DotGame.Framework.Graphics.Shader? shader) -> DotGame.Framework.Graphics.ShaderScope
+DotGame.Framework.Graphics.SpriteBatchScope
+DotGame.Framework.Graphics.SpriteBatchScope.Dispose() -> void
+DotGame.Framework.Graphics.SpriteBatchScope.SpriteBatchScope() -> void
+DotGame.Framework.Graphics.SpriteBatchSettings
+DotGame.Framework.Graphics.SpriteBatchSettings.Blend.get -> DotGame.Framework.Graphics.BlendMode
+DotGame.Framework.Graphics.SpriteBatchSettings.Blend.init -> void
+DotGame.Framework.Graphics.SpriteBatchSettings.Equals(DotGame.Framework.Graphics.SpriteBatchSettings other) -> bool
+DotGame.Framework.Graphics.SpriteBatchSettings.Sampler.get -> DotGame.Framework.Graphics.Sampler
+DotGame.Framework.Graphics.SpriteBatchSettings.Sampler.init -> void
+DotGame.Framework.Graphics.SpriteBatchSettings.SpriteBatchSettings() -> void
+DotGame.Framework.Graphics.SpriteBatchSettings.Transform.get -> System.Numerics.Matrix3x2?
+DotGame.Framework.Graphics.SpriteBatchSettings.Transform.init -> void
+DotGame.Framework.Graphics.Texture
+DotGame.Framework.Graphics.Texture.Dispose() -> void
+DotGame.Framework.Graphics.Texture.IsDisposed.get -> bool
+DotGame.Framework.Graphics.Texture.SetData(System.ReadOnlySpan<DotGame.Framework.Color32> data, DotGame.Framework.RectangleInt? region = null) -> void
+DotGame.Framework.Graphics.Texture.Size.get -> DotGame.Framework.Vector2Int
+DotGame.Framework.Graphics.Vertex
+DotGame.Framework.Graphics.Vertex.Color.get -> DotGame.Framework.Color
+DotGame.Framework.Graphics.Vertex.Color.init -> void
+DotGame.Framework.Graphics.Vertex.Deconstruct(out System.Numerics.Vector2 Position, out System.Numerics.Vector2 TextureCoordinate, out DotGame.Framework.Color Color) -> void
+DotGame.Framework.Graphics.Vertex.Equals(DotGame.Framework.Graphics.Vertex other) -> bool
+DotGame.Framework.Graphics.Vertex.Position.get -> System.Numerics.Vector2
+DotGame.Framework.Graphics.Vertex.Position.init -> void
+DotGame.Framework.Graphics.Vertex.TextureCoordinate.get -> System.Numerics.Vector2
+DotGame.Framework.Graphics.Vertex.TextureCoordinate.init -> void
+DotGame.Framework.Graphics.Vertex.Vertex() -> void
+DotGame.Framework.Graphics.Vertex.Vertex(System.Numerics.Vector2 Position, System.Numerics.Vector2 TextureCoordinate, DotGame.Framework.Color Color) -> void
+DotGame.Framework.Input.GamepadAxis
+DotGame.Framework.Input.GamepadAxis.LeftTrigger = 4 -> DotGame.Framework.Input.GamepadAxis
+DotGame.Framework.Input.GamepadAxis.LeftX = 0 -> DotGame.Framework.Input.GamepadAxis
+DotGame.Framework.Input.GamepadAxis.LeftY = 1 -> DotGame.Framework.Input.GamepadAxis
+DotGame.Framework.Input.GamepadAxis.RightTrigger = 5 -> DotGame.Framework.Input.GamepadAxis
+DotGame.Framework.Input.GamepadAxis.RightX = 2 -> DotGame.Framework.Input.GamepadAxis
+DotGame.Framework.Input.GamepadAxis.RightY = 3 -> DotGame.Framework.Input.GamepadAxis
+DotGame.Framework.Input.GamepadButton
+DotGame.Framework.Input.GamepadButton.Back = 6 -> DotGame.Framework.Input.GamepadButton
+DotGame.Framework.Input.GamepadButton.DPadDown = 12 -> DotGame.Framework.Input.GamepadButton
+DotGame.Framework.Input.GamepadButton.DPadLeft = 13 -> DotGame.Framework.Input.GamepadButton
+DotGame.Framework.Input.GamepadButton.DPadRight = 14 -> DotGame.Framework.Input.GamepadButton
+DotGame.Framework.Input.GamepadButton.DPadUp = 11 -> DotGame.Framework.Input.GamepadButton
+DotGame.Framework.Input.GamepadButton.East = 1 -> DotGame.Framework.Input.GamepadButton
+DotGame.Framework.Input.GamepadButton.Guide = 8 -> DotGame.Framework.Input.GamepadButton
+DotGame.Framework.Input.GamepadButton.LeftShoulder = 4 -> DotGame.Framework.Input.GamepadButton
+DotGame.Framework.Input.GamepadButton.LeftStick = 9 -> DotGame.Framework.Input.GamepadButton
+DotGame.Framework.Input.GamepadButton.North = 3 -> DotGame.Framework.Input.GamepadButton
+DotGame.Framework.Input.GamepadButton.RightShoulder = 5 -> DotGame.Framework.Input.GamepadButton
+DotGame.Framework.Input.GamepadButton.RightStick = 10 -> DotGame.Framework.Input.GamepadButton
+DotGame.Framework.Input.GamepadButton.South = 0 -> DotGame.Framework.Input.GamepadButton
+DotGame.Framework.Input.GamepadButton.Start = 7 -> DotGame.Framework.Input.GamepadButton
+DotGame.Framework.Input.GamepadButton.West = 2 -> DotGame.Framework.Input.GamepadButton
+DotGame.Framework.Input.GamepadEvent
+DotGame.Framework.Input.GamepadEvent.Axis.get -> DotGame.Framework.Input.GamepadAxis
+DotGame.Framework.Input.GamepadEvent.Button.get -> DotGame.Framework.Input.GamepadButton
+DotGame.Framework.Input.GamepadEvent.Equals(DotGame.Framework.Input.GamepadEvent other) -> bool
+DotGame.Framework.Input.GamepadEvent.GamepadEvent() -> void
+DotGame.Framework.Input.GamepadEvent.GamepadEvent(DotGame.Framework.Input.GamepadEventKind kind, int index, DotGame.Framework.Input.GamepadButton button = DotGame.Framework.Input.GamepadButton.South, DotGame.Framework.Input.GamepadAxis axis = DotGame.Framework.Input.GamepadAxis.LeftX, float value = 0) -> void
+DotGame.Framework.Input.GamepadEvent.Index.get -> int
+DotGame.Framework.Input.GamepadEvent.Kind.get -> DotGame.Framework.Input.GamepadEventKind
+DotGame.Framework.Input.GamepadEvent.Value.get -> float
+DotGame.Framework.Input.GamepadEventKind
+DotGame.Framework.Input.GamepadEventKind.AxisMoved = 4 -> DotGame.Framework.Input.GamepadEventKind
+DotGame.Framework.Input.GamepadEventKind.ButtonPressed = 2 -> DotGame.Framework.Input.GamepadEventKind
+DotGame.Framework.Input.GamepadEventKind.ButtonReleased = 3 -> DotGame.Framework.Input.GamepadEventKind
+DotGame.Framework.Input.GamepadEventKind.Connected = 0 -> DotGame.Framework.Input.GamepadEventKind
+DotGame.Framework.Input.GamepadEventKind.Disconnected = 1 -> DotGame.Framework.Input.GamepadEventKind
+DotGame.Framework.Input.GamepadState
+DotGame.Framework.Input.GamepadState.GamepadState() -> void
+DotGame.Framework.Input.GamepadState.GetAxis(DotGame.Framework.Input.GamepadAxis axis) -> float
+DotGame.Framework.Input.GamepadState.IsButtonDown(DotGame.Framework.Input.GamepadButton button) -> bool
+DotGame.Framework.Input.GamepadState.IsConnected.get -> bool
+DotGame.Framework.Input.InputService
+DotGame.Framework.Input.InputService.CreateTextInput() -> DotGame.Framework.Input.TextInput!
+DotGame.Framework.Input.InputService.GetGamepadState(int index) -> DotGame.Framework.Input.GamepadState
+DotGame.Framework.Input.InputService.GetKeyboardState() -> DotGame.Framework.Input.KeyboardState
+DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.A = 1 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.Apostrophe = 98 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.B = 2 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.Back = 103 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.Backslash = 96 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.Backspace = 53 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.C = 3 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.CapsLock = 51 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.Comma = 100 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.D = 4 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.D0 = 27 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.D1 = 28 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.D2 = 29 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.D3 = 30 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.D4 = 31 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.D5 = 32 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.D6 = 33 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.D7 = 34 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.D8 = 35 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.D9 = 36 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.Delete = 56 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.Down = 66 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.E = 5 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.End = 58 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.Enter = 54 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.Equals = 93 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.Escape = 49 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.F = 6 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.F1 = 37 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.F10 = 46 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.F11 = 47 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.F12 = 48 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.F2 = 38 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.F3 = 39 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.F4 = 40 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.F5 = 41 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.F6 = 42 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.F7 = 43 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.F8 = 44 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.F9 = 45 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.G = 7 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.Grave = 99 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.H = 8 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.Home = 57 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.I = 9 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.Insert = 55 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.J = 10 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.K = 11 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.L = 12 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.Left = 63 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.LeftAlt = 71 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.LeftBracket = 94 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.LeftControl = 69 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.LeftMeta = 73 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.LeftShift = 67 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.M = 13 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.Minus = 92 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.N = 14 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.None = 0 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.NumLock = 75 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.Numpad0 = 76 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.Numpad1 = 77 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.Numpad2 = 78 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.Numpad3 = 79 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.Numpad4 = 80 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.Numpad5 = 81 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.Numpad6 = 82 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.Numpad7 = 83 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.Numpad8 = 84 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.Numpad9 = 85 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.NumpadAdd = 86 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.NumpadDecimal = 90 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.NumpadDivide = 89 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.NumpadEnter = 91 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.NumpadMultiply = 88 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.NumpadSubtract = 87 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.O = 15 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.P = 16 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.PageDown = 60 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.PageUp = 59 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.Pause = 62 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.Period = 101 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.PrintScreen = 61 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.Q = 17 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.R = 18 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.Right = 64 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.RightAlt = 72 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.RightBracket = 95 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.RightControl = 70 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.RightMeta = 74 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.RightShift = 68 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.S = 19 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.Semicolon = 97 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.Slash = 102 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.Space = 52 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.T = 20 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.Tab = 50 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.U = 21 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.Up = 65 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.V = 22 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.W = 23 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.X = 24 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.Y = 25 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.Key.Z = 26 -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.KeyboardState
+DotGame.Framework.Input.KeyboardState.IsKeyDown(DotGame.Framework.Input.Key key) -> bool
+DotGame.Framework.Input.KeyboardState.KeyboardState() -> void
+DotGame.Framework.Input.KeyboardState.Modifiers.get -> DotGame.Framework.Input.ModifierKeys
+DotGame.Framework.Input.KeyEvent
+DotGame.Framework.Input.KeyEvent.Equals(DotGame.Framework.Input.KeyEvent other) -> bool
+DotGame.Framework.Input.KeyEvent.IsRepeat.get -> bool
+DotGame.Framework.Input.KeyEvent.Key.get -> DotGame.Framework.Input.Key
+DotGame.Framework.Input.KeyEvent.KeyEvent() -> void
+DotGame.Framework.Input.KeyEvent.Kind.get -> DotGame.Framework.Input.KeyEventKind
+DotGame.Framework.Input.KeyEvent.Modifiers.get -> DotGame.Framework.Input.ModifierKeys
+DotGame.Framework.Input.KeyEventKind
+DotGame.Framework.Input.KeyEventKind.Pressed = 0 -> DotGame.Framework.Input.KeyEventKind
+DotGame.Framework.Input.KeyEventKind.Released = 1 -> DotGame.Framework.Input.KeyEventKind
+DotGame.Framework.Input.ModifierKeys
+DotGame.Framework.Input.ModifierKeys.Alt = 4 -> DotGame.Framework.Input.ModifierKeys
+DotGame.Framework.Input.ModifierKeys.CapsLock = 16 -> DotGame.Framework.Input.ModifierKeys
+DotGame.Framework.Input.ModifierKeys.Control = 2 -> DotGame.Framework.Input.ModifierKeys
+DotGame.Framework.Input.ModifierKeys.Meta = 8 -> DotGame.Framework.Input.ModifierKeys
+DotGame.Framework.Input.ModifierKeys.None = 0 -> DotGame.Framework.Input.ModifierKeys
+DotGame.Framework.Input.ModifierKeys.NumLock = 32 -> DotGame.Framework.Input.ModifierKeys
+DotGame.Framework.Input.ModifierKeys.Shift = 1 -> DotGame.Framework.Input.ModifierKeys
+DotGame.Framework.Input.PointerButton
+DotGame.Framework.Input.PointerButton.Left = 1 -> DotGame.Framework.Input.PointerButton
+DotGame.Framework.Input.PointerButton.Middle = 4 -> DotGame.Framework.Input.PointerButton
+DotGame.Framework.Input.PointerButton.None = 0 -> DotGame.Framework.Input.PointerButton
+DotGame.Framework.Input.PointerButton.Right = 2 -> DotGame.Framework.Input.PointerButton
+DotGame.Framework.Input.PointerButton.X1 = 8 -> DotGame.Framework.Input.PointerButton
+DotGame.Framework.Input.PointerButton.X2 = 16 -> DotGame.Framework.Input.PointerButton
+DotGame.Framework.Input.PointerDevice
+DotGame.Framework.Input.PointerDevice.Mouse = 0 -> DotGame.Framework.Input.PointerDevice
+DotGame.Framework.Input.PointerDevice.Pen = 2 -> DotGame.Framework.Input.PointerDevice
+DotGame.Framework.Input.PointerDevice.Touch = 1 -> DotGame.Framework.Input.PointerDevice
+DotGame.Framework.Input.PointerEvent
+DotGame.Framework.Input.PointerEvent.Button.get -> DotGame.Framework.Input.PointerButton
+DotGame.Framework.Input.PointerEvent.Device.get -> DotGame.Framework.Input.PointerDevice
+DotGame.Framework.Input.PointerEvent.Equals(DotGame.Framework.Input.PointerEvent other) -> bool
+DotGame.Framework.Input.PointerEvent.HeldButtons.get -> DotGame.Framework.Input.PointerButton
+DotGame.Framework.Input.PointerEvent.Id.get -> int
+DotGame.Framework.Input.PointerEvent.Kind.get -> DotGame.Framework.Input.PointerEventKind
+DotGame.Framework.Input.PointerEvent.PointerEvent() -> void
+DotGame.Framework.Input.PointerEvent.Position.get -> System.Numerics.Vector2
+DotGame.Framework.Input.PointerEvent.ScrollWheelDelta.get -> System.Numerics.Vector2
+DotGame.Framework.Input.PointerEvent.Timestamp.get -> System.TimeSpan
+DotGame.Framework.Input.PointerEvent.TouchCount.get -> int
+DotGame.Framework.Input.PointerEvent.TouchIndex.get -> int
+DotGame.Framework.Input.PointerEventKind
+DotGame.Framework.Input.PointerEventKind.Began = 1 -> DotGame.Framework.Input.PointerEventKind
+DotGame.Framework.Input.PointerEventKind.Canceled = 4 -> DotGame.Framework.Input.PointerEventKind
+DotGame.Framework.Input.PointerEventKind.Ended = 3 -> DotGame.Framework.Input.PointerEventKind
+DotGame.Framework.Input.PointerEventKind.Moved = 2 -> DotGame.Framework.Input.PointerEventKind
+DotGame.Framework.Input.PointerEventKind.Wheel = 5 -> DotGame.Framework.Input.PointerEventKind
+DotGame.Framework.Input.TextInput
+DotGame.Framework.Input.TextInput.Bounds.get -> DotGame.Framework.Rectangle
+DotGame.Framework.Input.TextInput.Bounds.set -> void
+DotGame.Framework.Input.TextInput.Canceled -> System.EventHandler?
+DotGame.Framework.Input.TextInput.Composition.get -> string!
+DotGame.Framework.Input.TextInput.CompositionChanged -> System.EventHandler?
+DotGame.Framework.Input.TextInput.Dispose() -> void
+DotGame.Framework.Input.TextInput.Focus() -> void
+DotGame.Framework.Input.TextInput.GotFocus -> System.EventHandler?
+DotGame.Framework.Input.TextInput.InputType.get -> DotGame.Framework.Input.TextInputType
+DotGame.Framework.Input.TextInput.InputType.set -> void
+DotGame.Framework.Input.TextInput.IsFocused.get -> bool
+DotGame.Framework.Input.TextInput.IsMultiline.get -> bool
+DotGame.Framework.Input.TextInput.IsMultiline.set -> void
+DotGame.Framework.Input.TextInput.LostFocus -> System.EventHandler?
+DotGame.Framework.Input.TextInput.MaxLength.get -> int?
+DotGame.Framework.Input.TextInput.MaxLength.set -> void
+DotGame.Framework.Input.TextInput.Submitted -> System.EventHandler?
+DotGame.Framework.Input.TextInput.Text.get -> string!
+DotGame.Framework.Input.TextInput.Text.set -> void
+DotGame.Framework.Input.TextInput.TextChanged -> System.EventHandler?
+DotGame.Framework.Input.TextInput.Unfocus() -> void
+DotGame.Framework.Input.TextInputType
+DotGame.Framework.Input.TextInputType.Decimal = 3 -> DotGame.Framework.Input.TextInputType
+DotGame.Framework.Input.TextInputType.Email = 5 -> DotGame.Framework.Input.TextInputType
+DotGame.Framework.Input.TextInputType.Number = 2 -> DotGame.Framework.Input.TextInputType
+DotGame.Framework.Input.TextInputType.Password = 1 -> DotGame.Framework.Input.TextInputType
+DotGame.Framework.Input.TextInputType.Phone = 4 -> DotGame.Framework.Input.TextInputType
+DotGame.Framework.Input.TextInputType.Search = 7 -> DotGame.Framework.Input.TextInputType
+DotGame.Framework.Input.TextInputType.Text = 0 -> DotGame.Framework.Input.TextInputType
+DotGame.Framework.Input.TextInputType.Url = 6 -> DotGame.Framework.Input.TextInputType
+DotGame.Framework.Rectangle
+DotGame.Framework.Rectangle.Bottom.get -> float
+DotGame.Framework.Rectangle.Center.get -> System.Numerics.Vector2
+DotGame.Framework.Rectangle.Contains(DotGame.Framework.Rectangle other) -> bool
+DotGame.Framework.Rectangle.Contains(System.Numerics.Vector2 point) -> bool
+DotGame.Framework.Rectangle.Equals(DotGame.Framework.Rectangle other) -> bool
+DotGame.Framework.Rectangle.Height.get -> float
+DotGame.Framework.Rectangle.Height.init -> void
+DotGame.Framework.Rectangle.Intersects(DotGame.Framework.Rectangle other) -> bool
+DotGame.Framework.Rectangle.IsEmpty.get -> bool
+DotGame.Framework.Rectangle.Left.get -> float
+DotGame.Framework.Rectangle.Position.get -> System.Numerics.Vector2
+DotGame.Framework.Rectangle.Position.init -> void
+DotGame.Framework.Rectangle.Rectangle() -> void
+DotGame.Framework.Rectangle.Rectangle(float x, float y, float width, float height) -> void
+DotGame.Framework.Rectangle.Rectangle(System.Numerics.Vector2 position, System.Numerics.Vector2 size) -> void
+DotGame.Framework.Rectangle.Right.get -> float
+DotGame.Framework.Rectangle.Size.get -> System.Numerics.Vector2
+DotGame.Framework.Rectangle.Size.init -> void
+DotGame.Framework.Rectangle.Top.get -> float
+DotGame.Framework.Rectangle.Width.get -> float
+DotGame.Framework.Rectangle.Width.init -> void
+DotGame.Framework.Rectangle.X.get -> float
+DotGame.Framework.Rectangle.X.init -> void
+DotGame.Framework.Rectangle.Y.get -> float
+DotGame.Framework.Rectangle.Y.init -> void
+DotGame.Framework.RectangleInt
+DotGame.Framework.RectangleInt.Bottom.get -> int
+DotGame.Framework.RectangleInt.Center.get -> System.Numerics.Vector2
+DotGame.Framework.RectangleInt.Contains(DotGame.Framework.RectangleInt other) -> bool
+DotGame.Framework.RectangleInt.Contains(System.Numerics.Vector2 point) -> bool
+DotGame.Framework.RectangleInt.Equals(DotGame.Framework.RectangleInt other) -> bool
+DotGame.Framework.RectangleInt.Height.get -> int
+DotGame.Framework.RectangleInt.Height.init -> void
+DotGame.Framework.RectangleInt.Intersects(DotGame.Framework.RectangleInt other) -> bool
+DotGame.Framework.RectangleInt.IsEmpty.get -> bool
+DotGame.Framework.RectangleInt.Left.get -> int
+DotGame.Framework.RectangleInt.Position.get -> DotGame.Framework.Vector2Int
+DotGame.Framework.RectangleInt.Position.init -> void
+DotGame.Framework.RectangleInt.RectangleInt() -> void
+DotGame.Framework.RectangleInt.RectangleInt(DotGame.Framework.Vector2Int position, DotGame.Framework.Vector2Int size) -> void
+DotGame.Framework.RectangleInt.RectangleInt(int x, int y, int width, int height) -> void
+DotGame.Framework.RectangleInt.Right.get -> int
+DotGame.Framework.RectangleInt.Size.get -> DotGame.Framework.Vector2Int
+DotGame.Framework.RectangleInt.Size.init -> void
+DotGame.Framework.RectangleInt.Top.get -> int
+DotGame.Framework.RectangleInt.Width.get -> int
+DotGame.Framework.RectangleInt.Width.init -> void
+DotGame.Framework.RectangleInt.X.get -> int
+DotGame.Framework.RectangleInt.X.init -> void
+DotGame.Framework.RectangleInt.Y.get -> int
+DotGame.Framework.RectangleInt.Y.init -> void
+DotGame.Framework.Threading.GameThread
+DotGame.Framework.Time.DelayHandle
+DotGame.Framework.Time.DelayHandle.Cancel() -> void
+DotGame.Framework.Time.DelayHandle.IsCanceled.get -> bool
+DotGame.Framework.Time.TimeService
+DotGame.Framework.Time.TimeService.Delay(System.TimeSpan delay, System.Action! action) -> DotGame.Framework.Time.DelayHandle!
+DotGame.Framework.Time.TimeService.DelayAsync(System.TimeSpan delay, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+DotGame.Framework.Time.TimeService.Delta.get -> System.TimeSpan
+DotGame.Framework.Time.TimeService.DeltaSeconds.get -> float
+DotGame.Framework.Time.TimeService.FixedAlpha.get -> float
+DotGame.Framework.Time.TimeService.NextFrameAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+DotGame.Framework.Time.TimeService.Scale.get -> float
+DotGame.Framework.Time.TimeService.Scale.set -> void
+DotGame.Framework.Time.TimeService.Total.get -> System.TimeSpan
+DotGame.Framework.Time.TimeService.UnscaledDelta.get -> System.TimeSpan
+DotGame.Framework.Time.TimeService.UnscaledDeltaSeconds.get -> float
+DotGame.Framework.Time.TimeService.UnscaledTotal.get -> System.TimeSpan
+DotGame.Framework.Vector2Int
+DotGame.Framework.Vector2Int.Equals(DotGame.Framework.Vector2Int other) -> bool
+DotGame.Framework.Vector2Int.Vector2Int() -> void
+DotGame.Framework.Vector2Int.Vector2Int(int x, int y) -> void
+DotGame.Framework.Vector2Int.Vector2Int(int xy) -> void
+DotGame.Framework.Vector2Int.X.get -> int
+DotGame.Framework.Vector2Int.X.init -> void
+DotGame.Framework.Vector2Int.Y.get -> int
+DotGame.Framework.Vector2Int.Y.init -> void
+override DotGame.Framework.Angle.Equals(object? obj) -> bool
+override DotGame.Framework.Angle.GetHashCode() -> int
+override DotGame.Framework.Angle.ToString() -> string!
+override DotGame.Framework.Color.Equals(object? obj) -> bool
+override DotGame.Framework.Color.GetHashCode() -> int
+override DotGame.Framework.Color.ToString() -> string!
+override DotGame.Framework.Color32.Equals(object? obj) -> bool
+override DotGame.Framework.Color32.GetHashCode() -> int
+override DotGame.Framework.Color32.ToString() -> string!
+override DotGame.Framework.Graphics.ShaderCustomData.GetHashCode() -> int
+override DotGame.Framework.Graphics.SpriteBatchSettings.GetHashCode() -> int
+override DotGame.Framework.Graphics.Vertex.GetHashCode() -> int
+override DotGame.Framework.Input.GamepadEvent.GetHashCode() -> int
+override DotGame.Framework.Input.KeyEvent.GetHashCode() -> int
+override DotGame.Framework.Input.KeyEvent.ToString() -> string!
+override DotGame.Framework.Input.PointerEvent.GetHashCode() -> int
+override DotGame.Framework.Input.PointerEvent.ToString() -> string!
+override DotGame.Framework.Rectangle.Equals(object? obj) -> bool
+override DotGame.Framework.Rectangle.GetHashCode() -> int
+override DotGame.Framework.Rectangle.ToString() -> string!
+override DotGame.Framework.RectangleInt.Equals(object? obj) -> bool
+override DotGame.Framework.RectangleInt.GetHashCode() -> int
+override DotGame.Framework.RectangleInt.ToString() -> string!
+override DotGame.Framework.Vector2Int.Equals(object? obj) -> bool
+override DotGame.Framework.Vector2Int.GetHashCode() -> int
+override DotGame.Framework.Vector2Int.ToString() -> string!
+static DotGame.Framework.Angle.FromDegrees(float degrees) -> DotGame.Framework.Angle
+static DotGame.Framework.Angle.FromRadians(float radians) -> DotGame.Framework.Angle
+static DotGame.Framework.Angle.FromVector(System.Numerics.Vector2 vector) -> DotGame.Framework.Angle
+static DotGame.Framework.Angle.FullCircle.get -> DotGame.Framework.Angle
+static DotGame.Framework.Angle.HalfCircle.get -> DotGame.Framework.Angle
+static DotGame.Framework.Angle.Lerp(DotGame.Framework.Angle from, DotGame.Framework.Angle to, float amount) -> DotGame.Framework.Angle
+static DotGame.Framework.Angle.operator !=(DotGame.Framework.Angle a, DotGame.Framework.Angle b) -> bool
+static DotGame.Framework.Angle.operator *(DotGame.Framework.Angle a, float b) -> DotGame.Framework.Angle
+static DotGame.Framework.Angle.operator *(float b, DotGame.Framework.Angle a) -> DotGame.Framework.Angle
+static DotGame.Framework.Angle.operator +(DotGame.Framework.Angle a, DotGame.Framework.Angle b) -> DotGame.Framework.Angle
+static DotGame.Framework.Angle.operator -(DotGame.Framework.Angle a) -> DotGame.Framework.Angle
+static DotGame.Framework.Angle.operator -(DotGame.Framework.Angle a, DotGame.Framework.Angle b) -> DotGame.Framework.Angle
+static DotGame.Framework.Angle.operator /(DotGame.Framework.Angle a, float b) -> DotGame.Framework.Angle
+static DotGame.Framework.Angle.operator <(DotGame.Framework.Angle a, DotGame.Framework.Angle b) -> bool
+static DotGame.Framework.Angle.operator <=(DotGame.Framework.Angle a, DotGame.Framework.Angle b) -> bool
+static DotGame.Framework.Angle.operator ==(DotGame.Framework.Angle a, DotGame.Framework.Angle b) -> bool
+static DotGame.Framework.Angle.operator >(DotGame.Framework.Angle a, DotGame.Framework.Angle b) -> bool
+static DotGame.Framework.Angle.operator >=(DotGame.Framework.Angle a, DotGame.Framework.Angle b) -> bool
+static DotGame.Framework.Angle.QuarterCircle.get -> DotGame.Framework.Angle
+static DotGame.Framework.Angle.Wrap(DotGame.Framework.Angle angle) -> DotGame.Framework.Angle
+static DotGame.Framework.Angle.Zero.get -> DotGame.Framework.Angle
+static DotGame.Framework.Audio.FadeCurve.Exponential.get -> DotGame.Framework.Audio.FadeCurve!
+static DotGame.Framework.Audio.FadeCurve.Linear.get -> DotGame.Framework.Audio.FadeCurve!
+static DotGame.Framework.Audio.FadeCurve.SCurve.get -> DotGame.Framework.Audio.FadeCurve!
+static DotGame.Framework.Audio.FadeCurve.Sine.get -> DotGame.Framework.Audio.FadeCurve!
+static DotGame.Framework.Color.Black.get -> DotGame.Framework.Color
+static DotGame.Framework.Color.Blue.get -> DotGame.Framework.Color
+static DotGame.Framework.Color.Cyan.get -> DotGame.Framework.Color
+static DotGame.Framework.Color.FromPremultiplied(float r, float g, float b, float a) -> DotGame.Framework.Color
+static DotGame.Framework.Color.FromRgb(uint rgb, float alpha = 1) -> DotGame.Framework.Color
+static DotGame.Framework.Color.Gray.get -> DotGame.Framework.Color
+static DotGame.Framework.Color.Green.get -> DotGame.Framework.Color
+static DotGame.Framework.Color.Lerp(DotGame.Framework.Color from, DotGame.Framework.Color to, float amount) -> DotGame.Framework.Color
+static DotGame.Framework.Color.Magenta.get -> DotGame.Framework.Color
+static DotGame.Framework.Color.operator !=(DotGame.Framework.Color a, DotGame.Framework.Color b) -> bool
+static DotGame.Framework.Color.operator *(DotGame.Framework.Color color1, DotGame.Framework.Color color2) -> DotGame.Framework.Color
+static DotGame.Framework.Color.operator *(DotGame.Framework.Color value, float scale) -> DotGame.Framework.Color
+static DotGame.Framework.Color.operator *(float scale, DotGame.Framework.Color value) -> DotGame.Framework.Color
+static DotGame.Framework.Color.operator ==(DotGame.Framework.Color a, DotGame.Framework.Color b) -> bool
+static DotGame.Framework.Color.Red.get -> DotGame.Framework.Color
+static DotGame.Framework.Color.Transparent.get -> DotGame.Framework.Color
+static DotGame.Framework.Color.White.get -> DotGame.Framework.Color
+static DotGame.Framework.Color.Yellow.get -> DotGame.Framework.Color
+static DotGame.Framework.Color32.FromPremultiplied(byte r, byte g, byte b, byte a) -> DotGame.Framework.Color32
+static DotGame.Framework.Color32.FromRgba(byte r, byte g, byte b, byte a) -> DotGame.Framework.Color32
+static DotGame.Framework.Color32.operator !=(DotGame.Framework.Color32 a, DotGame.Framework.Color32 b) -> bool
+static DotGame.Framework.Color32.operator ==(DotGame.Framework.Color32 a, DotGame.Framework.Color32 b) -> bool
+static DotGame.Framework.Content.ContentManifest.Register(DotGame.Framework.Content.ContentManifest! manifest) -> void
+static DotGame.Framework.Content.ContentManifest.TryGetProperty(string! key, string! name, out string? value) -> bool
+static DotGame.Framework.Diagnostics.ExceptionExtensions.WithTag<TException>(this TException! exception, uint tag) -> TException!
+static DotGame.Framework.Diagnostics.Trace.FatalException -> System.EventHandler<DotGame.Framework.Diagnostics.FatalExceptionEventArgs!>?
+static DotGame.Framework.Diagnostics.Trace.MinLevel.get -> DotGame.Framework.Diagnostics.TraceLevel
+static DotGame.Framework.Diagnostics.Trace.MinLevel.set -> void
+static DotGame.Framework.Diagnostics.Trace.NonFatalException -> System.EventHandler<DotGame.Framework.Diagnostics.NonFatalExceptionEventArgs!>?
+static DotGame.Framework.Diagnostics.Trace.Write(uint tag, string? message = null, System.Exception? exception = null) -> void
+static DotGame.Framework.Diagnostics.Trace.WriteDebug(uint tag, string? message = null, System.Exception? exception = null) -> void
+static DotGame.Framework.Diagnostics.Trace.WriteError(uint tag, string? message = null, System.Exception? exception = null) -> void
+static DotGame.Framework.Diagnostics.Trace.Writer.get -> DotGame.Framework.Diagnostics.ITraceWriter!
+static DotGame.Framework.Diagnostics.Trace.Writer.set -> void
+static DotGame.Framework.Diagnostics.Trace.WriteVerbose(uint tag, string? message = null) -> void
+static DotGame.Framework.Diagnostics.Trace.WriteWarning(uint tag, string? message = null, System.Exception? exception = null) -> void
+static DotGame.Framework.Graphics.ShaderCustomData.operator !=(DotGame.Framework.Graphics.ShaderCustomData left, DotGame.Framework.Graphics.ShaderCustomData right) -> bool
+static DotGame.Framework.Graphics.ShaderCustomData.operator ==(DotGame.Framework.Graphics.ShaderCustomData left, DotGame.Framework.Graphics.ShaderCustomData right) -> bool
+static DotGame.Framework.Graphics.SpriteBatchSettings.operator !=(DotGame.Framework.Graphics.SpriteBatchSettings left, DotGame.Framework.Graphics.SpriteBatchSettings right) -> bool
+static DotGame.Framework.Graphics.SpriteBatchSettings.operator ==(DotGame.Framework.Graphics.SpriteBatchSettings left, DotGame.Framework.Graphics.SpriteBatchSettings right) -> bool
+static DotGame.Framework.Graphics.Vertex.operator !=(DotGame.Framework.Graphics.Vertex left, DotGame.Framework.Graphics.Vertex right) -> bool
+static DotGame.Framework.Graphics.Vertex.operator ==(DotGame.Framework.Graphics.Vertex left, DotGame.Framework.Graphics.Vertex right) -> bool
+static DotGame.Framework.Input.GamepadEvent.operator !=(DotGame.Framework.Input.GamepadEvent left, DotGame.Framework.Input.GamepadEvent right) -> bool
+static DotGame.Framework.Input.GamepadEvent.operator ==(DotGame.Framework.Input.GamepadEvent left, DotGame.Framework.Input.GamepadEvent right) -> bool
+static DotGame.Framework.Input.KeyEvent.operator !=(DotGame.Framework.Input.KeyEvent left, DotGame.Framework.Input.KeyEvent right) -> bool
+static DotGame.Framework.Input.KeyEvent.operator ==(DotGame.Framework.Input.KeyEvent left, DotGame.Framework.Input.KeyEvent right) -> bool
+static DotGame.Framework.Input.PointerEvent.operator !=(DotGame.Framework.Input.PointerEvent left, DotGame.Framework.Input.PointerEvent right) -> bool
+static DotGame.Framework.Input.PointerEvent.operator ==(DotGame.Framework.Input.PointerEvent left, DotGame.Framework.Input.PointerEvent right) -> bool
+static DotGame.Framework.Rectangle.FromCorners(System.Numerics.Vector2 corner, System.Numerics.Vector2 oppositeCorner) -> DotGame.Framework.Rectangle
+static DotGame.Framework.Rectangle.Inflate(DotGame.Framework.Rectangle rectangle, float xPerSide, float yPerSide) -> DotGame.Framework.Rectangle
+static DotGame.Framework.Rectangle.Intersection(DotGame.Framework.Rectangle a, DotGame.Framework.Rectangle b) -> DotGame.Framework.Rectangle
+static DotGame.Framework.Rectangle.Offset(DotGame.Framework.Rectangle rectangle, System.Numerics.Vector2 amount) -> DotGame.Framework.Rectangle
+static DotGame.Framework.Rectangle.operator !=(DotGame.Framework.Rectangle a, DotGame.Framework.Rectangle b) -> bool
+static DotGame.Framework.Rectangle.operator ==(DotGame.Framework.Rectangle a, DotGame.Framework.Rectangle b) -> bool
+static DotGame.Framework.Rectangle.Union(DotGame.Framework.Rectangle a, DotGame.Framework.Rectangle b) -> DotGame.Framework.Rectangle
+static DotGame.Framework.RectangleInt.FromCorners(DotGame.Framework.Vector2Int corner, DotGame.Framework.Vector2Int oppositeCorner) -> DotGame.Framework.RectangleInt
+static DotGame.Framework.RectangleInt.implicit operator DotGame.Framework.Rectangle(DotGame.Framework.RectangleInt rect) -> DotGame.Framework.Rectangle
+static DotGame.Framework.RectangleInt.Inflate(DotGame.Framework.RectangleInt rectangle, int xPerSide, int yPerSide) -> DotGame.Framework.RectangleInt
+static DotGame.Framework.RectangleInt.Intersection(DotGame.Framework.RectangleInt a, DotGame.Framework.RectangleInt b) -> DotGame.Framework.RectangleInt
+static DotGame.Framework.RectangleInt.Offset(DotGame.Framework.RectangleInt rectangle, DotGame.Framework.Vector2Int amount) -> DotGame.Framework.RectangleInt
+static DotGame.Framework.RectangleInt.operator !=(DotGame.Framework.RectangleInt a, DotGame.Framework.RectangleInt b) -> bool
+static DotGame.Framework.RectangleInt.operator ==(DotGame.Framework.RectangleInt a, DotGame.Framework.RectangleInt b) -> bool
+static DotGame.Framework.RectangleInt.Union(DotGame.Framework.RectangleInt a, DotGame.Framework.RectangleInt b) -> DotGame.Framework.RectangleInt
+static DotGame.Framework.Threading.GameThread.InvokeAsync(System.Action! action) -> System.Threading.Tasks.Task!
+static DotGame.Framework.Threading.GameThread.InvokeAsync(System.Func<System.Threading.Tasks.Task!>! action) -> System.Threading.Tasks.Task!
+static DotGame.Framework.Threading.GameThread.InvokeAsync<T>(System.Func<System.Threading.Tasks.Task<T>!>! action) -> System.Threading.Tasks.Task<T>!
+static DotGame.Framework.Threading.GameThread.InvokeAsync<T>(System.Func<T>! action) -> System.Threading.Tasks.Task<T>!
+static DotGame.Framework.Threading.GameThread.IsCurrent.get -> bool
+static DotGame.Framework.Threading.GameThread.Post(System.Action! action) -> void
+static DotGame.Framework.Threading.GameThread.Post(System.Func<System.Threading.Tasks.Task!>! asyncFunction) -> void
+static DotGame.Framework.Threading.GameThread.VerifyCurrent(uint tag) -> void
+static DotGame.Framework.Vector2Int.implicit operator System.Numerics.Vector2(DotGame.Framework.Vector2Int other) -> System.Numerics.Vector2
+static DotGame.Framework.Vector2Int.One.get -> DotGame.Framework.Vector2Int
+static DotGame.Framework.Vector2Int.operator !=(DotGame.Framework.Vector2Int a, DotGame.Framework.Vector2Int b) -> bool
+static DotGame.Framework.Vector2Int.operator *(DotGame.Framework.Vector2Int value, int scale) -> DotGame.Framework.Vector2Int
+static DotGame.Framework.Vector2Int.operator *(int scale, DotGame.Framework.Vector2Int value) -> DotGame.Framework.Vector2Int
+static DotGame.Framework.Vector2Int.operator +(DotGame.Framework.Vector2Int a, DotGame.Framework.Vector2Int b) -> DotGame.Framework.Vector2Int
+static DotGame.Framework.Vector2Int.operator -(DotGame.Framework.Vector2Int a, DotGame.Framework.Vector2Int b) -> DotGame.Framework.Vector2Int
+static DotGame.Framework.Vector2Int.operator -(DotGame.Framework.Vector2Int value) -> DotGame.Framework.Vector2Int
+static DotGame.Framework.Vector2Int.operator /(DotGame.Framework.Vector2Int value, int divisor) -> DotGame.Framework.Vector2Int
+static DotGame.Framework.Vector2Int.operator ==(DotGame.Framework.Vector2Int a, DotGame.Framework.Vector2Int b) -> bool
+static DotGame.Framework.Vector2Int.Zero.get -> DotGame.Framework.Vector2Int
+virtual DotGame.Framework.Game.HandleGamepadEvents(System.ReadOnlySpan<DotGame.Framework.Input.GamepadEvent> gamepadEvents) -> void
+virtual DotGame.Framework.Game.HandleKeyEvents(System.ReadOnlySpan<DotGame.Framework.Input.KeyEvent> keyEvents) -> void
+virtual DotGame.Framework.Game.HandlePointerEvents(System.ReadOnlySpan<DotGame.Framework.Input.PointerEvent> pointerEvents) -> void
+virtual DotGame.Framework.Game.OnClientBoundsChanged() -> void
+virtual DotGame.Framework.Game.OnDraw() -> void
+virtual DotGame.Framework.Game.OnFixedUpdate() -> void
+virtual DotGame.Framework.Game.OnGamepadEvent(DotGame.Framework.Input.GamepadEvent gamepadEvent) -> void
+virtual DotGame.Framework.Game.OnInitialize() -> System.Threading.Tasks.Task!
+virtual DotGame.Framework.Game.OnKeyEvent(DotGame.Framework.Input.KeyEvent keyEvent) -> void
+virtual DotGame.Framework.Game.OnLowMemory() -> void
+virtual DotGame.Framework.Game.OnPause() -> System.Threading.Tasks.Task!
+virtual DotGame.Framework.Game.OnPointerEvent(DotGame.Framework.Input.PointerEvent pointerEvent) -> void
+virtual DotGame.Framework.Game.OnResume() -> System.Threading.Tasks.Task!
+virtual DotGame.Framework.Game.OnStart() -> System.Threading.Tasks.Task!
+virtual DotGame.Framework.Game.OnStop() -> System.Threading.Tasks.Task!
+virtual DotGame.Framework.Game.OnUpdate() -> void
+~override DotGame.Framework.Graphics.ShaderCustomData.Equals(object obj) -> bool
+~override DotGame.Framework.Graphics.ShaderCustomData.ToString() -> string
+~override DotGame.Framework.Graphics.SpriteBatchSettings.Equals(object obj) -> bool
+~override DotGame.Framework.Graphics.SpriteBatchSettings.ToString() -> string
+~override DotGame.Framework.Graphics.Vertex.Equals(object obj) -> bool
+~override DotGame.Framework.Graphics.Vertex.ToString() -> string
+~override DotGame.Framework.Input.GamepadEvent.Equals(object obj) -> bool
+~override DotGame.Framework.Input.GamepadEvent.ToString() -> string
+~override DotGame.Framework.Input.KeyEvent.Equals(object obj) -> bool
+~override DotGame.Framework.Input.PointerEvent.Equals(object obj) -> bool
+DotGame.Framework.Graphics.SpriteFlip
+DotGame.Framework.Graphics.SpriteFlip.Both = DotGame.Framework.Graphics.SpriteFlip.Horizontal | DotGame.Framework.Graphics.SpriteFlip.Vertical -> DotGame.Framework.Graphics.SpriteFlip
+DotGame.Framework.Graphics.SpriteFlip.Horizontal = 1 -> DotGame.Framework.Graphics.SpriteFlip
+DotGame.Framework.Graphics.SpriteFlip.None = 0 -> DotGame.Framework.Graphics.SpriteFlip
+DotGame.Framework.Graphics.SpriteFlip.Vertical = 2 -> DotGame.Framework.Graphics.SpriteFlip

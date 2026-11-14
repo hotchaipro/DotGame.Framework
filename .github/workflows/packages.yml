@@ -1,0 +1,152 @@
+name: Packages
+
+# Packs every package and checks that a game builds from them alone. First the tool packages,
+# DotGame.Framework.Build.Tools.<rid>, one for each of the five build machines, each on the machine
+# itself, from the sources pinned in packaging/tool-sources.json (packaging/fetch-tools.py, then
+# pack-tools.sh). Then the framework's other packages, packed once (packaging/pack.sh: desktop and web,
+# since the mobile platforms need their workloads and, for iOS, a Mac). Then each machine builds the
+# samples' desktop and web heads, and the template's, from the packages, with no tool installed
+# (packaging/test-packages.sh). The packages are this run's artifacts.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packaging/**'
+      - 'native/spirv2dxil/**'
+      - '.github/workflows/packages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  VERSION: 0.1.0-ci.${{ github.run_number }}
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  tools:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+            msvc: x64
+          - os: windows-11-arm
+            rid: win-arm64
+            msvc: arm64
+          # The oldest supported Ubuntu, so the tools run on older glibc versions
+          - os: ubuntu-22.04
+            rid: linux-x64
+          - os: ubuntu-22.04-arm
+            rid: linux-arm64
+          - os: macos-latest
+            rid: osx-arm64
+    runs-on: ${{ matrix.os }}
+    name: tools ${{ matrix.rid }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '11.0.x'
+      - name: Set up MSVC
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.msvc }}
+      - name: Fetch the pinned tools
+        run: python packaging/fetch-tools.py ${{ matrix.rid }} artifacts/tools/${{ matrix.rid }}
+      # The tools must run on Ubuntu 22.04's glibc (2.35) and need no libstdc++ newer than its own
+      - name: Check the glibc floor
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          for f in artifacts/tools/${{ matrix.rid }}/tools/*; do
+            need=$(objdump -T "$f" | grep -o 'GLIBC_2\.[0-9]*' | sort -uV | tail -1)
+            echo "$(basename "$f"): ${need:-none}"
+            if [ -n "$need" ] && [ "$(printf '%s\nGLIBC_2.35\n' "$need" | sort -V | tail -1)" != GLIBC_2.35 ]; then
+              echo "::error::$(basename "$f") needs $need"; exit 1
+            fi
+          done
+      - name: Pack
+        shell: bash
+        run: packaging/pack-tools.sh ${{ matrix.rid }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tools-${{ matrix.rid }}
+          path: artifacts/packages/*.nupkg
+          if-no-files-found: error
+
+  packages:
+    runs-on: ubuntu-22.04
+    name: packages
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '11.0.x'
+      - name: Install the web workload
+        run: dotnet workload install wasm-tools
+      # Only the contents are checked here: the names list is kept by whoever publishes the packages,
+      # who checks them with it first (packaging/check.sh)
+      - name: Pack
+        shell: bash
+        env:
+          DOTGAME_CHECK_DRY_RUN: '1'
+        run: |
+          status=0
+          PLATFORMS="desktop webgl" packaging/pack.sh > pack.log 2>&1 || status=$?
+          grep -E ": error |^== |packages checked|\.nupkg: " pack.log | sort -u | head -40
+          exit $status
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pack-log
+          path: pack.log
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages
+          path: artifacts/packages/*.nupkg
+          if-no-files-found: error
+
+  test:
+    needs: [tools, packages]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, rid: win-x64 }
+          - { os: windows-11-arm, rid: win-arm64 }
+          - { os: ubuntu-latest, rid: linux-x64 }
+          - { os: ubuntu-24.04-arm, rid: linux-arm64 }
+          - { os: macos-latest, rid: osx-arm64 }
+    runs-on: ${{ matrix.os }}
+    name: test ${{ matrix.rid }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '11.0.x'
+      - name: Install the web workload
+        run: dotnet workload install wasm-tools
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: '*'
+          path: artifacts/packages
+          merge-multiple: true
+      - name: Build the samples from packages
+        shell: bash
+        run: packaging/test-packages.sh desktop webgl

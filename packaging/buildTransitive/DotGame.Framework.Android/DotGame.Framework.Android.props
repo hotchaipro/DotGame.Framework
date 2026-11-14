@@ -1,0 +1,8 @@
+<Project>
+
+    <!-- The platform a game builds for is the one whose package it references -->
+    <PropertyGroup>
+        <DotGamePlatform>android</DotGamePlatform>
+    </PropertyGroup>
+
+</Project>

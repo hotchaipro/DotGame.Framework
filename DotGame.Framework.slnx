@@ -1,0 +1,36 @@
+<Solution>
+    <Folder Name="/analyzers/">
+        <Project Path="analyzers/DotGame.Analyzers.csproj" />
+    </Folder>
+    <Folder Name="/framework/">
+        <Project Path="framework/DotGame.Framework.csproj" />
+    </Folder>
+    <Folder Name="/pipeline/">
+        <Project Path="pipeline/DotGame.Framework.ContentPipeline.csproj" />
+        <Project Path="pipeline/tasks/DotGame.Framework.ContentPipeline.Tasks.csproj" />
+        <Project Path="pipeline/tool/DotGame.Framework.ContentPipeline.BuildTool.csproj" />
+    </Folder>
+    <Folder Name="/platform/">
+        <Project Path="platform/android/DotGame.Framework.Android.csproj" />
+        <Project Path="platform/desktop/DotGame.Framework.Desktop.csproj" />
+        <Project Path="platform/ios/DotGame.Framework.iOS.csproj" />
+        <Project Path="platform/shared/DotGame.Framework.Platform.Common.shproj" />
+        <Project Path="platform/webgl/DotGame.Framework.WebGL.csproj" />
+    </Folder>
+    <Folder Name="/sample/">
+        <Project Path="sample/android/DotGame.Framework.Sample.Android.csproj">
+            <Deploy Solution="Debug|*" />
+        </Project>
+        <Project Path="sample/desktop/DotGame.Framework.Sample.Desktop.csproj" />
+        <Project Path="sample/ios/DotGame.Framework.Sample.iOS.csproj" />
+        <Project Path="sample/shared/DotGame.Framework.Sample.shproj" />
+        <Project Path="sample/webgl/DotGame.Framework.Sample.WebGL.csproj" />
+    </Folder>
+    <Folder Name="/test/">
+        <Project Path="test/DotGame.Analyzers.Tests/DotGame.Analyzers.Tests.csproj" />
+        <Project Path="test/DotGame.ContentPipeline.FakeTool/DotGame.ContentPipeline.FakeTool.csproj" />
+        <Project Path="test/DotGame.Framework.ContentPipeline.Tests/DotGame.Framework.ContentPipeline.Tests.csproj" />
+        <Project Path="test/DotGame.Framework.Testing/DotGame.Framework.Testing.csproj" />
+        <Project Path="test/DotGame.Framework.Tests/DotGame.Framework.Tests.csproj" />
+    </Folder>
+</Solution>

@@ -1,0 +1,13 @@
+<Project>
+
+    <!--
+        DotGame.Framework, from a package. The framework's include (build/DotGame.Framework.targets,
+        the same file a game imports from source) skips its project references when DotGamePackaged is
+        true: the game references its platform's package, which brings the framework and the content
+        pipeline (DotGame.Framework.Build) with it.
+    -->
+    <PropertyGroup>
+        <DotGamePackaged>true</DotGamePackaged>
+    </PropertyGroup>
+
+</Project>

@@ -1,0 +1,16 @@
+#nullable enable
+DotGame.Framework.iOS.AudioCategory
+DotGame.Framework.iOS.AudioCategory.Ambient = 0 -> DotGame.Framework.iOS.AudioCategory
+DotGame.Framework.iOS.AudioCategory.Playback = 2 -> DotGame.Framework.iOS.AudioCategory
+DotGame.Framework.iOS.AudioCategory.SoloAmbient = 1 -> DotGame.Framework.iOS.AudioCategory
+DotGame.Framework.iOS.iOSGameEngine
+DotGame.Framework.iOS.iOSGameEngine.iOSGameEngine(UIKit.UIWindow! window, DotGame.Framework.iOS.iOSGameEngine.Options? options = null) -> void
+DotGame.Framework.iOS.iOSGameEngine.Options
+DotGame.Framework.iOS.iOSGameEngine.Options.AudioCategory.get -> DotGame.Framework.iOS.AudioCategory
+DotGame.Framework.iOS.iOSGameEngine.Options.AudioCategory.set -> void
+DotGame.Framework.iOS.iOSGameEngine.Options.AutoHidesHomeIndicator.get -> bool
+DotGame.Framework.iOS.iOSGameEngine.Options.AutoHidesHomeIndicator.set -> void
+DotGame.Framework.iOS.iOSGameEngine.Options.DeferredSystemGestureEdges.get -> UIKit.UIRectEdge
+DotGame.Framework.iOS.iOSGameEngine.Options.DeferredSystemGestureEdges.set -> void
+DotGame.Framework.iOS.iOSGameEngine.Options.Options() -> void
+DotGame.Framework.iOS.iOSGameEngine.Run(DotGame.Framework.Game! game) -> void

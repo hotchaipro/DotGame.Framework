@@ -1,0 +1,29 @@
+<Project>
+    <!--
+        Rules for the public projects, imported by the framework, each platform and the libraries built on them:
+
+            - Every public member has a doc comment, and every doc comment is correct: CS1591 and the
+                others are build errors, as every warning is.
+            - Every change to the public API is a reviewed diff: eng\api\<project>\PublicAPI.Unshipped.txt in the project's repository
+                lists it, and a member that isn't listed, or is listed and gone, fails the build (RS0016,
+                RS0017). When a version ships, its lines move to PublicAPI.Shipped.txt.
+    -->
+    <PropertyGroup>
+        <!-- The project's API lists: eng\api\<project>\ in its repository (the folder with its Directory.Build.props) -->
+        <DotGamePublicApiDir Condition="'$(DotGamePublicApiDir)' == ''">$([MSBuild]::GetDirectoryNameOfFileAbove('$(MSBuildProjectDirectory)', 'Directory.Build.props'))\eng\api\$(MSBuildProjectName)\</DotGamePublicApiDir>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <!-- The docs are for developers, so they're not published with a game -->
+        <PublishDocumentationFile>false</PublishDocumentationFile>
+        <!-- Optional parameters are how these APIs are written, and until 1.0 binary compatibility isn't promised -->
+        <!-- CS1591 and CS1573 are off for the other projects (Directory.Build.props): a missing doc comment is an error here -->
+        <NoWarn>$(NoWarn.Replace('CS1591', '').Replace('CS1573', ''));RS0026;RS0027</NoWarn>
+        <!-- Errors too in a repository that imports this and doesn't treat every warning as one -->
+        <WarningsAsErrors>$(WarningsAsErrors);CS0419;CS1570;CS1571;CS1572;CS1573;CS1574;CS1580;CS1581;CS1584;CS1587;CS1589;CS1590;CS1591;CS1592;CS1658;CS1710;CS1711;CS1712;CS1723;CS1734;RS0016;RS0017</WarningsAsErrors>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" Version="5.6.0" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
+        <AdditionalFiles Include="$(DotGamePublicApiDir)PublicAPI.Shipped.txt" Visible="false" />
+        <AdditionalFiles Include="$(DotGamePublicApiDir)PublicAPI.Unshipped.txt" Visible="false" />
+    </ItemGroup>
+</Project>

@@ -1,0 +1,90 @@
+<Project Sdk="Microsoft.NET.Sdk.WebAssembly">
+    <PropertyGroup>
+        <TargetFramework>net11.0</TargetFramework>
+        <RuntimeIdentifier>browser-wasm</RuntimeIdentifier>
+        <OutputType>Library</OutputType>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
+        <Nullable>enable</Nullable>
+        <IsAotCompatible>true</IsAotCompatible>
+    </PropertyGroup>
+
+    <PropertyGroup>
+        <InvariantTimezone>true</InvariantTimezone>
+        <InvariantGlobalization>true</InvariantGlobalization>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+        <RunAOTCompilation>true</RunAOTCompilation>
+        <WasmStripILAfterAOT>true</WasmStripILAfterAOT>
+        <PublishTrimmed>true</PublishTrimmed>
+        <TrimMode>full</TrimMode>
+        <WasmEnableSIMD>true</WasmEnableSIMD>
+        <WasmEnableExceptionHandling>true</WasmEnableExceptionHandling>
+        <EventSourceSupport>false</EventSourceSupport>
+        <UseSystemResourceKeys>true</UseSystemResourceKeys>
+        <MetadataUpdaterSupport>false</MetadataUpdaterSupport>
+        <HttpActivityPropagationSupport>false</HttpActivityPropagationSupport>
+    </PropertyGroup>
+
+    <!--
+        The nested publish that a game runs for AOT (WasmBuildingForNestedPublish) builds this project
+        again. On .NET 11 its compression step then finds the runtime's webcil assets without their
+        endpoints and fails ("Endpoints not found for related asset"). The outer publish compresses the
+        game's output itself, so the nested build doesn't compress this project's assets.
+    -->
+    <PropertyGroup Condition="'$(WasmBuildingForNestedPublish)' == 'true'">
+        <CompressionEnabled>false</CompressionEnabled>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\framework\DotGame.Framework.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <StaticWebAssetFingerprintPattern Include="JS" Pattern="*.js" Expression="#[.{fingerprint}]!" />
+    </ItemGroup>
+
+    <!--
+    Prevent this library project's static web assets manifest files from being
+    copied to the output directory of referencing projects. The consuming project
+    generates its own combined manifest. If both are present, the WasmAppHost
+    may pick the wrong one (alphabetically first), causing a 404 at runtime.
+    -->
+    <Target Name="_SuppressLibraryStaticWebAssetsManifestOutput" AfterTargets="AddStaticWebAssetsManifest;AddStaticWebAssetEndpointsBuildManifest" BeforeTargets="GetCopyToOutputDirectoryItems">
+        <ItemGroup>
+            <ContentWithTargetPath Remove="@(ContentWithTargetPath)" Condition="'%(TargetPath)' == '$(TargetName).staticwebassets.runtime.json' or '%(TargetPath)' == '$(TargetName).staticwebassets.endpoints.json'" />
+        </ItemGroup>
+    </Target>
+
+    <!--
+        Prevent this library project from exporting any _framework/ assets in its
+        StaticWebAssets manifest. This covers WasmResource items (runtime, symbol,
+        native, settings, manifest) and their compressed variants (.gz/.br).
+        Sample references WebGL and independently computes all of these assets from its
+        own ReferenceCopyLocalPaths (SourceType:Computed/Sample). If WebGL also exports
+        them via its manifest (SourceType:Project/WebGL), GenerateStaticWebAssetsManifest
+        rejects duplicates with a conflicting-target-path error.
+        Running BeforeTargets="GenerateStaticWebAssetsManifest" ensures the compression
+        pipeline (ResolveCompressedFiles → ApplyCompressionNegotiation) has already
+        completed before we strip the items from the manifest.
+    -->
+    <Target Name="_SuppressWasmFrameworkStaticWebAssets" BeforeTargets="GenerateStaticWebAssetsManifest">
+        <ItemGroup>
+            <StaticWebAsset Remove="@(StaticWebAsset)" Condition="$([System.String]::Copy('%(RelativePath)').StartsWith('_framework/'))" />
+            <StaticWebAssetEndpoint Remove="@(StaticWebAssetEndpoint)" Condition="$([System.String]::Copy('%(StaticWebAssetEndpoint.AssetFile)').Contains('_framework'))" />
+        </ItemGroup>
+    </Target>
+
+    <PropertyGroup>
+        <DefaultShaderTarget>glsl</DefaultShaderTarget>
+        <DefaultShaderNamespace>DotGame.Framework.WebGL.Graphics</DefaultShaderNamespace>
+    </PropertyGroup>
+
+    <Import Project="..\shared\DotGame.Framework.Platform.Common.projitems" Label="Shared" />
+
+    <Import Project="..\shared\DefaultShaders.targets" />
+    <Import Project="..\..\pipeline\WebAssembly.LegacyExceptions.targets" />
+
+    <Import Project="..\..\eng\DotGame.PublicApi.props" />
+</Project>

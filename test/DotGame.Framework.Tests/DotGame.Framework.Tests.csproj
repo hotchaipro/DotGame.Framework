@@ -1,0 +1,58 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net11.0</TargetFramework>
+        <OutputType>Exe</OutputType>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <IsPackable>false</IsPackable>
+        <RootNamespace>DotGame.Framework.Tests</RootNamespace>
+        <!-- Allocation tests read GC.GetAllocatedBytesForCurrentThread. A background GC can retire a
+                  thread's allocation buffer and count what was left of it as allocated, so a test that
+                  allocated nothing fails with up to 8 KB. Blocking GCs count correctly. -->
+        <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="xunit.v3" Version="$(XunitV3Version)" />
+    </ItemGroup>
+
+    <!-- The internal sources under test, compiled in on their own: the KTX2 reader the platforms'
+              texture loaders share, the native platforms' volume control, and Android's ASTC decoder and
+              sound mixer, which have no Android dependencies.
+              Add the files a new test covers here. -->
+    <ItemGroup>
+        <Compile Include="..\..\platform\shared\Content\Ktx2Texture.cs" Link="Platform\Shared\Content\Ktx2Texture.cs" />
+        <Compile Include="..\..\platform\shared\Content\Ktx2PixelFormat.cs" Link="Platform\Shared\Content\Ktx2PixelFormat.cs" />
+        <Compile Include="..\..\platform\android\Graphics\AstcDecoder.cs" Link="Platform\Android\Graphics\AstcDecoder.cs" />
+        <Compile Include="..\..\platform\shared\Graphics\SpriteVertex.cs" Link="Platform\Shared\Graphics\SpriteVertex.cs" />
+        <Compile Include="..\..\platform\android\Audio\AudioMixer.cs" Link="Platform\Android\Audio\AudioMixer.cs" />
+        <Compile Include="..\..\platform\android\Audio\PcmConverter.cs" Link="Platform\Android\Audio\PcmConverter.cs" />
+        <Compile Include="..\..\platform\android\Audio\SoundStrategy.cs" Link="Platform\Android\Audio\SoundStrategy.cs" />
+        <Compile Include="..\..\platform\android\Audio\VoiceStrategy.cs" Link="Platform\Android\Audio\VoiceStrategy.cs" />
+        <Compile Include="..\..\platform\shared\Audio\PolledVolumeControlStrategy.cs" Link="Platform\Shared\Audio\PolledVolumeControlStrategy.cs" />
+        <Compile Include="..\..\platform\shared\SafeAsync.cs" Link="Platform\Shared\SafeAsync.cs" />
+        <Compile Include="..\..\platform\shared\Audio\IMusicPlaybackListener.cs" Link="Platform\Shared\Audio\IMusicPlaybackListener.cs" />
+        <Compile Include="..\..\platform\shared\AsyncOperationQueue.cs" Link="Platform\Shared\AsyncOperationQueue.cs" />
+        <Compile Include="..\..\platform\shared\Audio\MusicStrategyBase.cs" Link="Platform\Shared\Audio\MusicStrategyBase.cs" />
+        <Compile Include="..\..\platform\shared\Audio\SoundDecoder.cs" Link="Platform\Shared\Audio\SoundDecoder.cs" />
+        <Compile Include="..\..\platform\shared\Audio\OpusMusicReader.cs" Link="Platform\Shared\Audio\OpusMusicReader.cs" />
+    </ItemGroup>
+
+    <!-- The platforms' global usings the linked sources rely on -->
+    <ItemGroup>
+        <Using Include="System.Numerics" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="TestData\**" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\framework\DotGame.Framework.csproj" />
+    </ItemGroup>
+
+    <!-- The framework's Debug behaviour in a Debug build, as a game's build sets it -->
+    <Import Project="..\..\packaging\build\DotGame.Framework.Switches.targets" Condition="'$(_DotGameSwitchesImported)' != 'true'" />
+    <Import Project="..\..\eng\DotGame.AudioCodecs.targets" />
+</Project>

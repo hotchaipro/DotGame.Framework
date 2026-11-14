@@ -1,0 +1,121 @@
+<Project>
+
+    <!--
+        ContentPipeline.BuildTool.props
+
+        The framework's content pipeline build tool,
+        DotGame.Framework.ContentPipeline.BuildTool (tool\), which encodes
+        textures, shaders, sounds and music and compiles the default shaders.
+        Imported by ExternalTools.props.
+
+        The content processor command templates in
+        ContentPipeline.<platform>.targets start with
+        $(ContentPipelineBuildCommand), the command line that runs the tool, so
+        it is computed here at evaluation time.  The tool itself is built from
+        source on demand by _BuildContentPipelineBuildTool, which BuildContent
+        and _CompileDefaultShaders depend on.
+
+        Properties (optional, set before the import):
+            ContentPipelineBuildTool            A prebuilt tool to use instead of
+                                                                                    building it: a .dll run with the
+                                                                                    dotnet host, or a native executable.
+            ContentPipelineBuildConfiguration   Configuration the tool is built in
+                                                                                    (default Release).
+    -->
+
+    <PropertyGroup Label="Framework content pipeline build tool">
+        <_ContentPipelineBuildToolImported>true</_ContentPipelineBuildToolImported>
+        <ContentPipelineBuildProject Condition="'$(ContentPipelineBuildProject)' == ''">$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)tool/DotGame.Framework.ContentPipeline.BuildTool.csproj'))</ContentPipelineBuildProject>
+        <ContentPipelineBuildConfiguration Condition="'$(ContentPipelineBuildConfiguration)' == ''">Release</ContentPipelineBuildConfiguration>
+        <_ContentPipelineBuildProjectDir>$([System.IO.Path]::GetDirectoryName('$(ContentPipelineBuildProject)'))$([System.IO.Path]::DirectorySeparatorChar)</_ContentPipelineBuildProjectDir>
+        <!-- The tool's default output path; checked against the build's actual output. -->
+        <_ContentPipelineBuildOutputPath>$(_ContentPipelineBuildProjectDir)bin$([System.IO.Path]::DirectorySeparatorChar)$(ContentPipelineBuildConfiguration)$([System.IO.Path]::DirectorySeparatorChar)net11.0$([System.IO.Path]::DirectorySeparatorChar)$([System.IO.Path]::GetFileNameWithoutExtension('$(ContentPipelineBuildProject)')).dll</_ContentPipelineBuildOutputPath>
+        <_ContentPipelineBuildStampFile>$(_ContentPipelineBuildProjectDir)obj$([System.IO.Path]::DirectorySeparatorChar)$(ContentPipelineBuildConfiguration)$([System.IO.Path]::DirectorySeparatorChar)ContentPipelineBuild.stamp</_ContentPipelineBuildStampFile>
+        <_ContentPipelineBuildRemoveProperties>TargetFramework;TargetFrameworks;RuntimeIdentifier;RuntimeIdentifiers;SelfContained;Platform;PlatformTarget;PublishTrimmed;PublishAot;PublishSingleFile;PublishReadyToRun;_IsPublishing;OutDir;OutputPath;BaseOutputPath;IntermediateOutputPath;BaseIntermediateOutputPath;MSBuildProjectExtensionsPath;PublishDir;OutputType;AppendRuntimeIdentifierToOutputPath;AppendTargetFrameworkToOutputPath;ArtifactsPath;UseArtifactsOutput;DotGameBuildRoot;BuildingInsideVisualStudio</_ContentPipelineBuildRemoveProperties>
+
+        <!-- The tool that runs: the prebuilt override, or the build output. -->
+        <ContentPipelineBuildToolPath Condition="'$(ContentPipelineBuildTool)' != ''">$([System.IO.Path]::GetFullPath('$(ContentPipelineBuildTool)'))</ContentPipelineBuildToolPath>
+        <ContentPipelineBuildToolPath Condition="'$(ContentPipelineBuildTool)' == ''">$(_ContentPipelineBuildOutputPath)</ContentPipelineBuildToolPath>
+
+        <_ContentPipelineDotNetHost>$(DOTNET_HOST_PATH)</_ContentPipelineDotNetHost>
+        <_ContentPipelineDotNetHost Condition="'$(_ContentPipelineDotNetHost)' == '' and '$(NetCoreRoot)' != '' and Exists('$([MSBuild]::EnsureTrailingSlash($(NetCoreRoot)))dotnet$(_ExeExt)')">$([MSBuild]::EnsureTrailingSlash($(NetCoreRoot)))dotnet$(_ExeExt)</_ContentPipelineDotNetHost>
+        <_ContentPipelineDotNetHost Condition="'$(_ContentPipelineDotNetHost)' == ''">dotnet</_ContentPipelineDotNetHost>
+
+        <ContentPipelineBuildCommand Condition="'$([System.IO.Path]::GetExtension($(ContentPipelineBuildToolPath)).ToLowerInvariant())' == '.dll'">&quot;$(_ContentPipelineDotNetHost)&quot; &quot;$(ContentPipelineBuildToolPath)&quot;</ContentPipelineBuildCommand>
+        <ContentPipelineBuildCommand Condition="'$(ContentPipelineBuildCommand)' == ''">&quot;$(ContentPipelineBuildToolPath)&quot;</ContentPipelineBuildCommand>
+
+        <!--
+            Machine-specific paths in $(ContentPipelineBuildCommand), reduced to
+            their file names in the content cache key so cache entries can be shared
+            between clones and machines.
+        -->
+        <_ContentPipelineBuildToolPaths>$(_ContentPipelineDotNetHost);$(ContentPipelineBuildToolPath)</_ContentPipelineBuildToolPaths>
+
+        <!--
+            The content cache key holds the version of each content type
+            (ContentVersions.props) rather than the tool's bytes, so a tool change
+            that does not change a type's output keeps its cache.  The tool and the
+            versions are still incremental build inputs: a change re-runs the
+            content targets, which are then served from the cache.
+        -->
+        <_ContentPipelineBuildVersionsFile>$(_ContentPipelineBuildProjectDir)ContentVersions.props</_ContentPipelineBuildVersionsFile>
+        <_ContentPipelineBuildToolInputs>$(ContentPipelineBuildToolPath);$(_ContentPipelineBuildVersionsFile)</_ContentPipelineBuildToolInputs>
+    </PropertyGroup>
+
+    <Import Project="$(_ContentPipelineBuildVersionsFile)" />
+
+    <!--
+        Built from source with the MSBuild task (rather than a ProjectReference)
+        because BuildContent runs before BeforeBuild, ahead of project reference
+        resolution, and because the consuming project's global properties
+        (TargetFramework, RuntimeIdentifier, Platform, ...) must not flow into the
+        tool's build: it always runs on the build machine.
+
+        Restoring and building the tool costs over a second even when nothing
+        changed, so the build only runs when the tool's sources are newer than a
+        stamp file written after each build.
+    -->
+    <Target Name="_CollectContentPipelineBuildToolInputs"
+                    Condition="'$(ContentPipelineBuildTool)' == ''">
+        <ItemGroup>
+            <_ContentPipelineBuildToolInput Include="$(_ContentPipelineBuildProjectDir)**\*.cs;$(ContentPipelineBuildProject)"
+                                                                            Exclude="$(_ContentPipelineBuildProjectDir)bin\**;$(_ContentPipelineBuildProjectDir)obj\**" />
+            <!-- A missing tool counts as out of date. -->
+            <_ContentPipelineBuildToolInput Include="$(_ContentPipelineBuildOutputPath)" />
+        </ItemGroup>
+    </Target>
+
+    <Target Name="_BuildContentPipelineBuildTool"
+                    DependsOnTargets="_CollectContentPipelineBuildToolInputs"
+                    Inputs="@(_ContentPipelineBuildToolInput)"
+                    Outputs="$(_ContentPipelineBuildStampFile)"
+                    Condition="'$(ContentPipelineBuildTool)' == ''">
+        <!--
+            Restore and build are separate MSBuild task calls with different
+            global properties so the build gets a fresh evaluation that imports
+            the restore output. Platform is set, not only removed: a Platform
+            environment variable (a Visual Studio developer prompt sets one) is
+            read as a property and would move the output to bin\x64\.
+        -->
+        <MSBuild Projects="$(ContentPipelineBuildProject)"
+                          Targets="Restore"
+                          Properties="Platform=AnyCPU;Configuration=$(ContentPipelineBuildConfiguration);_ContentPipelineBuildRestore=true"
+                          RemoveProperties="$(_ContentPipelineBuildRemoveProperties)" />
+        <MSBuild Projects="$(ContentPipelineBuildProject)"
+                          Targets="Build"
+                          Properties="Platform=AnyCPU;Configuration=$(ContentPipelineBuildConfiguration)"
+                          RemoveProperties="$(_ContentPipelineBuildRemoveProperties)">
+            <Output TaskParameter="TargetOutputs" PropertyName="_ContentPipelineBuildOutput" />
+        </MSBuild>
+        <Error Condition="'$(_ContentPipelineBuildOutput)' != '$(_ContentPipelineBuildOutputPath)'"
+                      Text="The DotGame content pipeline build tool was built to '$(_ContentPipelineBuildOutput)' instead of the expected '$(_ContentPipelineBuildOutputPath)'." />
+        <Touch Files="$(_ContentPipelineBuildStampFile)" AlwaysCreate="true" />
+    </Target>
+
+    <Target Name="_ResolveContentPipelineBuildTool"
+                    DependsOnTargets="_BuildContentPipelineBuildTool">
+        <Error Condition="!Exists('$(ContentPipelineBuildToolPath)')"
+                      Text="The DotGame content pipeline build tool was not found: '$(ContentPipelineBuildToolPath)'." />
+    </Target>
+
+</Project>

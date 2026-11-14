@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <!--
+        Code the platform implementations share, compiled into each platform project that imports
+        this (desktop, Android, iOS, WebGL), rather than into the framework: the framework assembly holds
+        the public API and the strategies the platforms implement, and this is neither. Internal to
+        each platform assembly.
+    -->
+    <PropertyGroup>
+        <MSBuildAllProjects Condition="'$(MSBuildVersion)' == '' Or '$(MSBuildVersion)' &lt; '16.0'">$(MSBuildAllProjects);$(MSBuildThisFileFullPath)</MSBuildAllProjects>
+        <HasSharedItems>true</HasSharedItems>
+        <SharedGUID>ded92ce8-ccf9-4565-b917-0594b25cabc3</SharedGUID>
+    </PropertyGroup>
+    <PropertyGroup Label="Configuration">
+        <Import_RootNamespace>DotGame.Framework.Platform.Common</Import_RootNamespace>
+    </PropertyGroup>
+    <ItemGroup>
+        <Compile Include="$(MSBuildThisFileDirectory)AsyncOperationQueue.cs" />
+        <Compile Include="$(MSBuildThisFileDirectory)Audio\IMusicPlaybackListener.cs" />
+        <Compile Include="$(MSBuildThisFileDirectory)Audio\MusicStrategyBase.cs" />
+        <Compile Include="$(MSBuildThisFileDirectory)Audio\PolledVolumeControlStrategy.cs" />
+        <Compile Include="$(MSBuildThisFileDirectory)Content\Ktx2Texture.cs" />
+        <Compile Include="$(MSBuildThisFileDirectory)Content\Ktx2PixelFormat.cs" />
+        <Compile Include="$(MSBuildThisFileDirectory)Input\GamepadReporter.cs" />
+        <Compile Include="$(MSBuildThisFileDirectory)Input\GamepadSlots.cs" />
+        <Compile Include="$(MSBuildThisFileDirectory)Graphics\CachedShaderValue.cs" />
+        <Compile Include="$(MSBuildThisFileDirectory)Graphics\SpriteVertex.cs" />
+        <Compile Include="$(MSBuildThisFileDirectory)Input\TextInputCodePoints.cs" />
+        <Compile Include="$(MSBuildThisFileDirectory)SafeAsync.cs" />
+        <Compile Include="$(MSBuildThisFileDirectory)UnicodeExtensions.cs" />
+    </ItemGroup>
+
+    <!--
+        Sounds and music decoded with DotGame.AudioCodecs, for the platforms that decode audio in managed
+        code, which set DotGameManagedAudioDecoding before importing this: desktop and Android all of it,
+        iOS its lossless sounds (AAC, Opus in CAF and music go to AVAudioFile). The web decodes audio in
+        the browser, so a web game's download never carries the codecs.
+        NOTE: Here rather than in a shared project of its own: Visual Studio keys shared projects by their
+        folder, and two imported from one folder fail to load ("An item with the same key has already been
+        added").
+    -->
+    <ItemGroup Condition="'$(DotGameManagedAudioDecoding)' == 'true'">
+        <Compile Include="$(MSBuildThisFileDirectory)Audio\SoundDecoder.cs" />
+        <Compile Include="$(MSBuildThisFileDirectory)Audio\OpusMusicReader.cs" />
+    </ItemGroup>
+    <Import Project="$(MSBuildThisFileDirectory)..\..\eng\DotGame.AudioCodecs.targets" Condition="'$(DotGameManagedAudioDecoding)' == 'true'" />
+</Project>

@@ -1,0 +1,653 @@
+<Project>
+
+    <!--
+        ContentPipeline.webgl.targets
+
+        WebGL / WASM content processor commands.  Import this instead of
+        ContentPipeline.targets in projects that target WebGL.
+
+        Pipeline (commands of the DotGame.Framework.ContentPipeline.BuildTool
+        tool, see ContentPipeline.BuildTool.props):
+            Textures   *.png   → *.webp           texture   (lossless or lossy WebP, premultiplied alpha)
+            Shaders    *.slang → *.glsl           shader  (combined GLSL ES 300)
+            Sound      *.wav   → *.flac / *.opus  sound     (lossless FLAC @ 44.1 kHz, or lossy Ogg Opus @ 48 kHz)
+            Sound Bank *       → *.flac/.opus + *.json  sound      (a sound bank)
+            Music      *.flac  → *.opus          music  (Ogg Opus @ 48 kHz)
+
+        Customisation: override any <Type>Content(Lossless|Lossy)ProcessorCommand
+        property in the consuming project before importing this file.
+
+        Tool paths are resolved by ExternalTools.props.  Override individual
+        tool locations by setting AstcEncExe, SlangCExe, or SpirvCrossExe
+        before import.
+    -->
+
+    <Import Project="ExternalTools.props" />
+
+    <!--
+        Precompression (docs/guide/platforms.md, "Hosting"): a publish writes a
+        Brotli copy (.br, at its highest quality) of every file the page fetches
+        that isn't compressed already (content, the runtime's wasm), and the
+        loaders fetch the copies. The host must send them with
+        Content-Encoding: br, so the browser decodes them as they arrive; one that
+        doesn't stops the game with an error saying so, unless the project sets
+        DotGameWebDecompressionFallback to true: then the copies are gzip (.gz),
+        which the page decodes itself where the host didn't.  A build (dotnet
+        run) writes no copies and fetches the files as they are.
+
+        CompressionEnabled=false turns it off: the files are fetched as they are,
+        as the host serves them.  The SDK only fills its properties in when
+        they're empty, after the project, so these defaults can be overridden
+        anywhere in it.
+    -->
+    <PropertyGroup>
+        <CompressionEnabled Condition="'$(CompressionEnabled)' == ''">true</CompressionEnabled>
+        <DotGameWebDecompressionFallback Condition="'$(DotGameWebDecompressionFallback)' == ''">false</DotGameWebDecompressionFallback>
+        <_DotGameWebPrecompressionFormat>br</_DotGameWebPrecompressionFormat>
+        <_DotGameWebPrecompressionFormat Condition="'$(DotGameWebDecompressionFallback)' == 'true'">gz</_DotGameWebPrecompressionFormat>
+        <!-- One format, at publish only: a build is served as it is -->
+        <EnableDefaultCompressionFormats Condition="'$(EnableDefaultCompressionFormats)' == ''">false</EnableDefaultCompressionFormats>
+        <PublishCompressionFormats Condition="'$(PublishCompressionFormats)' == '' and '$(_DotGameWebPrecompressionFormat)' == 'br'">brotli</PublishCompressionFormats>
+        <PublishCompressionFormats Condition="'$(PublishCompressionFormats)' == '' and '$(_DotGameWebPrecompressionFormat)' == 'gz'">gzip</PublishCompressionFormats>
+        <!--
+            Every file but the ones compressed already: the SDK's own list knows only common types, not
+            the content pipeline's (.spritefont, .glsl) or a game's (.pbon, .lvl). Properties, not a
+            target, because the SDK folds them into its defaults while it evaluates.
+        -->
+        <CompressionIncludePatterns>$(CompressionIncludePatterns);**/*</CompressionIncludePatterns>
+        <CompressionExcludePatterns>$(CompressionExcludePatterns);**/*.ktx2;**/*.opus;**/*.flac;**/*.avif;**/*.zst;_headers;_redirects;staticwebapp.config.json</CompressionExcludePatterns>
+    </PropertyGroup>
+
+    <UsingTask TaskName="_ApplyWebPrecompression" AssemblyFile="$(FrameworkContentPipelineTasksAssembly)" />
+
+    <!--
+        _ApplyWebPrecompression – tells the published page which files have copies, so the loaders
+        fetch those; points its preloads at them; and adds the rule that sends a .br as Brotli to the
+        game's _headers (Cloudflare and Netlify read it). See the task.
+    -->
+    <Target Name="_ApplyWebPrecompression" AfterTargets="Publish"
+                    Condition="'$(CompressionEnabled)' == 'true' and '$(StaticWebAssetsSdkBuildTasksAssembly)' != ''">
+        <_ApplyWebPrecompression WebRoot="$([System.IO.Path]::GetFullPath('$([MSBuild]::EnsureTrailingSlash('$(PublishDir)'))wwwroot'))"
+                                                          Page="$(LaunchScreenPage)"
+                                                          Format="$(_DotGameWebPrecompressionFormat)" />
+    </Target>
+
+    <!--
+        Build-time workarounds for WASM apps that consume library /
+        shared projects. Kept in a separate file so platform integrators
+        can import them directly without the WebGL content pipeline.
+    -->
+    <Import Project="WebAssemblyAppWorkarounds.targets" />
+
+    <!-- ──────── Texture: PNG → WebP (premultiplied alpha) ──────── -->
+
+    <!--
+        The texture command is a pure encoder; content caching is handled by the
+        shared MSBuild tasks (_TryRestoreFromContentCache / _SaveToContentCache
+        in ContentPipeline.targets), which derive the cache partition from the
+        normalized command template + the texture content version
+        (ContentVersions.props of the build tool).  WebGL and
+        desktop encode textures identically and therefore share cache entries;
+        any argument change self-invalidates the cache automatically.
+    -->
+    <PropertyGroup Label="WebGL texture content processor (lossless)">
+        <TextureContentLosslessProcessorCommand Condition="'$(TextureContentLosslessProcessorCommand)' == ''">$(ContentPipelineBuildCommand) texture --compression Lossless --input &quot;{InputFile}&quot; --output &quot;{OutputFile}&quot; --premultiply-alpha {PremultiplyAlpha}</TextureContentLosslessProcessorCommand>
+        <TextureContentNearLosslessProcessorCommand Condition="'$(TextureContentNearLosslessProcessorCommand)' == ''">$(ContentPipelineBuildCommand) texture --compression Lossless --quality {Quality} --input &quot;{InputFile}&quot; --output &quot;{OutputFile}&quot; --premultiply-alpha {PremultiplyAlpha}</TextureContentNearLosslessProcessorCommand>
+        <TextureContentLosslessProcessorOutputExtension Condition="'$(TextureContentLosslessProcessorOutputExtension)' == ''">.webp</TextureContentLosslessProcessorOutputExtension>
+        <TextureContentNearLosslessProcessorOutputExtension Condition="'$(TextureContentNearLosslessProcessorOutputExtension)' == ''">.webp</TextureContentNearLosslessProcessorOutputExtension>
+    </PropertyGroup>
+
+    <PropertyGroup Label="WebGL texture content processor (lossy)">
+        <TextureContentLossyProcessorCommand Condition="'$(TextureContentLossyProcessorCommand)' == ''">$(ContentPipelineBuildCommand) texture --compression Lossy --quality {Quality} --input &quot;{InputFile}&quot; --output &quot;{OutputFile}&quot; --premultiply-alpha {PremultiplyAlpha}</TextureContentLossyProcessorCommand>
+        <TextureContentLossyProcessorOutputExtension Condition="'$(TextureContentLossyProcessorOutputExtension)' == ''">.webp</TextureContentLossyProcessorOutputExtension>
+    </PropertyGroup>
+
+    <!-- ──────── Shader: Slang → combined GLSL ES 300 ──────── -->
+
+    <PropertyGroup Label="WebGL shader content processor">
+        <ShaderContentProcessorCommand Condition="'$(ShaderContentProcessorCommand)' == ''">$(ContentPipelineBuildCommand) shader --shader-types glsl --slangc $(SlangCPath) --spirv-cross $(SpirvCrossPath) --input &quot;{InputFile}&quot; --output &quot;{OutputFile}&quot; --intermediate-dir &quot;{IntermediateDir}&quot;</ShaderContentProcessorCommand>
+        <ShaderContentProcessorOutputExtension Condition="'$(ShaderContentProcessorOutputExtension)' == ''">.glsl</ShaderContentProcessorOutputExtension>
+    </PropertyGroup>
+
+    <!-- ──────── Sound: WAV → FLAC (lossless) / Ogg Opus (lossy) ──────── -->
+
+    <!--
+        Sample rate is 44.1 kHz, matching the other platforms, except for lossy
+        sounds: Opus decodes only at 48 kHz (below).
+
+        A Web Audio AudioContext runs at whatever rate the OS audio device is
+        running at; it is not something the page picks.  Safari on iOS
+        typically runs the built-in output at 44.1 kHz, so 44.1 kHz content is
+        the closest match on the platform where audio latency hurts most.
+
+        This is deliberately NOT relied upon for correctness.  The device rate
+        varies by browser, hardware, and output route (a Bluetooth headset can
+        move it), so no single encode rate can match every device.  The runtime
+        therefore normalises every decoded sound buffer to the live context
+        rate once, at load, in wwwroot/audio.js (see resampleToContextRate).
+        That guarantees the play path never resamples regardless of what this
+        value is; matching here simply means the common case has no conversion
+        to do at all, and pays no load-time cost for one.
+
+        Changing the rate here changes the normalized command template, which
+        is part of the content cache's parameters hash, so the cache
+        re-partitions itself automatically — there is no version to bump.
+    -->
+    <PropertyGroup Label="WebGL sound content sample rate">
+        <SoundContentSampleRate Condition="'$(SoundContentSampleRate)' == ''">44100</SoundContentSampleRate>
+    </PropertyGroup>
+
+    <PropertyGroup Label="WebGL sound content processor (lossless)">
+        <SoundContentFlacProcessorCommand Condition="'$(SoundContentFlacProcessorCommand)' == ''">$(ContentPipelineBuildCommand) sound --codec flac --compression Lossless --sample-rate $(SoundContentSampleRate) --input &quot;{InputFile}&quot; --output &quot;{OutputFile}&quot;</SoundContentFlacProcessorCommand>
+        <SoundContentFlacProcessorOutputExtension Condition="'$(SoundContentFlacProcessorOutputExtension)' == ''">.flac</SoundContentFlacProcessorOutputExtension>
+        <SoundContentWavProcessorCommand Condition="'$(SoundContentWavProcessorCommand)' == ''">$(ContentPipelineBuildCommand) sound --codec pcm_s16le --compression Lossless --sample-rate $(SoundContentSampleRate) --input &quot;{InputFile}&quot; --output &quot;{OutputFile}&quot;</SoundContentWavProcessorCommand>
+        <SoundContentWavProcessorOutputExtension Condition="'$(SoundContentWavProcessorOutputExtension)' == ''">.wav</SoundContentWavProcessorOutputExtension>
+    </PropertyGroup>
+
+    <!-- ──────── Sound: lossy Ogg Opus @ 48 kHz ──────── -->
+
+    <!--
+        Opus in Ogg, the codec web music already uses, at 48 kHz, the only rate
+        Opus decodes at.  A lossy sound bank is built at that rate too
+        (SoundContentLossySampleRate), so its offsets fall on whole samples of the
+        encoded file: headless Chrome's decodeAudioData keeps them exact with Ogg
+        Opus, where WebM moved them 0.5 ms and MP4 6.5 ms.  At the default Quality
+        it's about 23% smaller than the AAC it replaced (2026-11).
+
+        Sounds decode with decodeAudioData, which takes Ogg from Safari 18.4 and
+        Chrome and Firefox.  Older Safari (the iPhone X and earlier, which can't
+        run iOS 18) can't decode them: such a sound stays silent and the game
+        carries on (audio.js), as it does without music there.  AAC was used
+        before only for those Safaris, and the pipeline has no AAC encoder off
+        macOS (patents).
+
+        FLAC needs no such care: Safari has decoded it since Safari 11 / iOS 11
+        (2017), which is why the lossless path, the one standalone SoundContent
+        takes by default, was never exposed to this.
+
+        Codec choice has no effect on playback latency either way:
+        decodeAudioData yields raw PCM, so by the time a voice is played the
+        original encoding no longer exists in the pipeline.  It affects
+        download size and a one-time decode cost only.
+    -->
+    <PropertyGroup Label="WebGL sound content processor (lossy)">
+        <SoundContentLossySampleRate Condition="'$(SoundContentLossySampleRate)' == ''">48000</SoundContentLossySampleRate>
+        <SoundContentLossyProcessorCommand Condition="'$(SoundContentLossyProcessorCommand)' == ''">$(ContentPipelineBuildCommand) sound --codec libopus --compression Lossy --quality {Quality} --sample-rate $(SoundContentLossySampleRate) --input &quot;{InputFile}&quot; --output &quot;{OutputFile}&quot;</SoundContentLossyProcessorCommand>
+        <SoundContentLossyProcessorOutputExtension Condition="'$(SoundContentLossyProcessorOutputExtension)' == ''">.opus</SoundContentLossyProcessorOutputExtension>
+    </PropertyGroup>
+
+    <!-- ──────── Music: FLAC/WAV → Ogg Opus @ 48 kHz ──────── -->
+
+    <!--
+        Codec: Opus, not Vorbis.  WebGL music is streamed and decoded in
+        packets on a background thread via the browser's WebCodecs
+        AudioDecoder (see wwwroot/music-decoder.js), and the WebCodecs codec
+        registry has no Vorbis decoder — Opus is the only music codec that
+        can be decoded incrementally.  Vorbis would force the whole track to
+        be fetched and decoded at once through decodeAudioData, which is the
+        fallback path, not the intended one.
+
+        Sample rate is 48 kHz.  Opus always decodes at 48 kHz, and 48 kHz is
+        also the Web Audio AudioContext rate on the browsers this engine
+        targets, so decoded frames flow to the output with no resampling at
+        all — the single largest avoidable cost on the audio thread.
+
+        The channel count is intentionally NOT forced: mono sources stay mono
+        (music is decoded/streamed per-track, not summed into a shared mixer
+        buffer, so a uniform channel count is not required).  The content
+        manifest's Channels/SampleRate are read from this encoded output
+        (see _ProbeMusicOutput) so they always match the artifact the runtime
+        decoder is built from.
+
+        Changing the codec/rate here changes the normalized command template,
+        which is part of the content cache's parameters hash, so the cache
+        re-partitions itself automatically — there is no version to bump.
+    -->
+    <PropertyGroup Label="WebGL music content processor">
+        <MusicContentProcessorCommand Condition="'$(MusicContentProcessorCommand)' == ''">$(ContentPipelineBuildCommand) music --codec libopus --sample-rate 48000 --quality {Quality} --input &quot;{InputFile}&quot; --output &quot;{OutputFile}&quot;</MusicContentProcessorCommand>
+        <MusicContentProcessorOutputExtension Condition="'$(MusicContentProcessorOutputExtension)' == ''">.opus</MusicContentProcessorOutputExtension>
+    </PropertyGroup>
+
+    <!--
+        WebGL / WASM content root.
+
+        WebGL / WASM projects place their processed content under wwwroot/
+        (the static web root) via Link metadata such as
+        "wwwroot\Content\Effects\msdf.slang", so the per-item
+        OutputRelativeDir the pipeline computes begins with
+        "wwwroot/Content/" and encoded assets land under
+        "$(ContentOutputDir)wwwroot\Content\...".
+
+        Exactly as with a project's physical wwwroot folder, the "wwwroot"
+        segment marks the static web root: it defines where URLs start and
+        never appears in them.  Static web assets are therefore registered
+        with "$(ContentOutputDir)wwwroot\" as their content root (see
+        _ResolveContentPipelineStaticWebAssets below), which publishes them
+        to "wwwroot/Content/..." and serves them at "Content/...".
+
+        The runtime content root is therefore "Content/" — the same as
+        non-web platforms.  $(ContentManifestBasePath) keeps the shared
+        "Content/" default (the manifest generator strips the leading
+        "wwwroot/" web-root segment per the static web assets convention
+        before stripping the content root), and fingerprint-map keys are
+        likewise stripped relative to the web root, where the fingerprint
+        scan is rooted, so they match the URL-relative paths loaders
+        request.
+
+        This is set BEFORE importing ContentPipeline.targets; consuming
+        projects can still override it in their .csproj (evaluated
+        earlier still).
+    -->
+    <PropertyGroup>
+        <ContentFingerprintsBasePath Condition="'$(ContentFingerprintsBasePath)' == ''">Content/</ContentFingerprintsBasePath>
+        <!-- Link prefix for content items injected by the pipeline itself
+                  (e.g. a library's precompiled shader) so they land under the web root. -->
+        <ContentLinkBasePath Condition="'$(ContentLinkBasePath)' == ''">wwwroot\Content\</ContentLinkBasePath>
+    </PropertyGroup>
+
+    <!--
+        The launch screen: WebP images (content, fingerprinted like the rest), and the page and app
+        manifest generated from the project's wwwroot/index.html and app.webmanifest (see
+        _GenerateLaunchScreenPage).
+    -->
+    <PropertyGroup>
+        <LaunchScreenPlatform>webgl</LaunchScreenPlatform>
+        <LaunchScreenImageExtension>.webp</LaunchScreenImageExtension>
+        <!-- The encoder's working files go in the content pipeline's intermediate folder (which the
+                  launch screen properties add, once it's defined) -->
+        <LaunchScreenPage Condition="'$(LaunchScreenPage)' == ''">index.html</LaunchScreenPage>
+        <LaunchScreenManifest Condition="'$(LaunchScreenManifest)' == ''">app.webmanifest</LaunchScreenManifest>
+    </PropertyGroup>
+
+    <!--
+        The modules in the page's preloads, so their fetches start during the HTML parse instead of
+        once main.js has been fetched and parsed. These are main.js's import graph, which
+        test/web checks. A package adds its own the same way; workers don't belong here.
+
+        A package's module that must run before the game starts (its crash reporter, say, so it
+        sees a browser that can't run the game) is a WebPageModule item: the page runs it before
+        main.js. Its Config metadata is the script's data-config attribute.
+    -->
+    <ItemGroup>
+        <WebStartupModule Include="_dotgame/main.js;_dotgame/diagnostics.js;_dotgame/content.js;_dotgame/audio.js;_dotgame/page-errors.js;_dotgame/graphics.js;_dotgame/input.js;_dotgame/game.js" />
+    </ItemGroup>
+
+    <!-- The runtime's wasm, when the game's project links it: exception handling older browsers run -->
+    <Import Project="WebAssembly.LegacyExceptions.targets" />
+
+    <UsingTask TaskName="_GenerateWebPage" AssemblyFile="$(FrameworkContentPipelineTasksAssembly)" />
+
+    <!-- Import the shared content pipeline infrastructure -->
+    <Import Project="ContentPipeline.targets" />
+
+    <!--
+        _KeepContentSourcesUnpublished – a source kept under wwwroot, where a web project's content
+        can live, is a static web asset to the web SDK, as any file there is. Only what's made from it
+        belongs on the site: the source would be downloadable and take up room.
+    -->
+    <Target Name="_KeepContentSourcesUnpublished"
+                    BeforeTargets="ResolveProjectStaticWebAssets">
+        <ItemGroup>
+            <_ContentSourceItem Include="@(TextureContent);@(ShaderContent);@(SoundContent);@(MusicContent);@(DataContent);@(SpriteFontContent);@(TextureAtlasContent);@(SoundBankContent)" />
+            <Content Remove="@(_ContentSourceItem)" />
+        </ItemGroup>
+    </Target>
+
+    <!--
+        _WarnWebContentOutsideWebRoot – content whose Link doesn't start with
+        "wwwroot\" is encoded outside the web root, so it is never registered as
+        a static web asset: it isn't served, preloaded, or published, and the
+        game fails only when it loads it.  Warn at build time instead, naming the
+        item.  Runs after BuildContent, when every item type (including
+        extensions') has its OutputRelativeDir.
+    -->
+    <Target Name="_WarnWebContentOutsideWebRoot"
+                    AfterTargets="BuildContent"
+                    Condition="'$(DesignTimeBuild)' != 'true'">
+        <ItemGroup>
+            <_WebContentItem Include="@(TextureContent);@(ShaderContent);@(SoundContent);@(MusicContent);@(DataContent);@(TextureAtlasContent);@(SoundBankContent);@(SpriteFontContent)" />
+            <_WebContentOutsideWebRoot Include="@(_WebContentItem)"
+                                                                  Condition="!$([System.String]::Copy('%(_WebContentItem.OutputRelativeDir)').Replace('/', '\').ToLowerInvariant().StartsWith('wwwroot\'))" />
+        </ItemGroup>
+        <Warning Condition="'@(_WebContentOutsideWebRoot)' != ''"
+                          Text="Content item '%(_WebContentOutsideWebRoot.Identity)' is output to '%(_WebContentOutsideWebRoot.OutputRelativeDir)', outside wwwroot, so it won't be served. Start its Link with 'wwwroot', as in '$(ContentLinkBasePath)...'." />
+    </Target>
+
+    <!-- ─────── Content filename fingerprinting (web SDK projects) ─────── -->
+
+    <!--
+        Web content is published with per-file content-hash fingerprints
+        embedded in the filename (e.g. Sounds/soundbank_0.<hash>.flac).
+        A generated C# class (ContentFingerprints) maps logical content
+        paths to their fingerprinted equivalents so loaders can request
+        them without any runtime manifest fetch or query strings.
+
+        Combined with an immutable Cache-Control header on /Content/*
+        this lets the browser and CDN cache assets indefinitely while
+        still picking up changes on the next deploy (a changed file
+        gets a new fingerprint and therefore a new filename / URL).
+
+        The static web assets pipeline serves the fingerprinted URL by
+        overriding the asset's RelativePath; the underlying file on
+        disk keeps its original name (no copies, no renames).
+
+        Generated:
+            $(ContentFingerprintsCsFile)  C# source compiled into the project
+
+        The base path used to strip the content-root prefix from the
+        generated map keys ($(ContentFingerprintsBasePath), defaulting to
+        "Content/") is defined above, before the shared import.
+    -->
+    <UsingTask TaskName="_GenerateContentFingerprints" AssemblyFile="$(FrameworkContentPipelineTasksAssembly)" />
+
+    <Target Name="_BuildContentFingerprintsMessage"
+                    Condition="'$(StaticWebAssetsSdkBuildTasksAssembly)' != ''">
+        <Message Text="Generating content fingerprints..." Importance="high" />
+    </Target>
+
+    <!--
+        Always runs (no Inputs/Outputs) because the fingerprint set depends
+        on the full file contents under ContentOutputDir, and the inline
+        task short-circuits when the generated source file would be byte-
+        for-byte identical.
+
+        Items are persisted as a TaskItem array property so the static web
+        asset registration target can reuse them without re-hashing.
+
+        Runs AfterTargets="BuildContent" so content from extensions (atlases,
+        sound banks) appended to $(BuildContentDependsOn) by targets
+        imported AFTER this file is also enumerated under $(ContentOutputDir).
+    -->
+    <Target Name="_BuildContentFingerprints"
+                    AfterTargets="BuildContent"
+                    DependsOnTargets="_BuildContentPipelineTasks;_ValidateContentPipeline;_BuildContentFingerprintsMessage"
+                    Condition="'$(StaticWebAssetsSdkBuildTasksAssembly)' != ''">
+        <PropertyGroup>
+            <ContentFingerprintsCsFile Condition="'$(ContentFingerprintsCsFile)' == ''">$(ContentIntermediateDir)ContentFingerprints.g.cs</ContentFingerprintsCsFile>
+        </PropertyGroup>
+        <!--
+            The scan is rooted at the "wwwroot" folder inside the content
+            output tree — the static web root the Link metadata placed the
+            assets under — so relative paths (and therefore fingerprint-map
+            keys and static-web-asset RelativePaths) are URL-relative, e.g.
+            "Content/Effects/msdf.glsl".
+        -->
+        <_GenerateContentFingerprints
+            ContentRoot="$(ContentOutputDir)wwwroot\"
+            BasePath="$(ContentFingerprintsBasePath)"
+            OutputCsFile="$(ContentFingerprintsCsFile)"
+            CacheFile="$(ContentIntermediateDir)ContentFingerprints.hashes">
+            <Output TaskParameter="Fingerprints" ItemName="_FingerprintedContentAsset" />
+        </_GenerateContentFingerprints>
+    </Target>
+
+    <!--
+        Add the generated source to Compile so it ends up in the assembly.
+        Runs after BuildContent (which generates the file) and before the
+        compiler pulls in the Compile item set.
+    -->
+    <Target Name="_AddContentFingerprintsToCompile"
+                    BeforeTargets="CoreCompile"
+                    DependsOnTargets="BuildContent;_BuildContentFingerprints"
+                    Condition="'$(StaticWebAssetsSdkBuildTasksAssembly)' != ''">
+        <PropertyGroup>
+            <ContentFingerprintsCsFile Condition="'$(ContentFingerprintsCsFile)' == ''">$(ContentIntermediateDir)ContentFingerprints.g.cs</ContentFingerprintsCsFile>
+        </PropertyGroup>
+        <ItemGroup Condition="Exists('$(ContentFingerprintsCsFile)')">
+            <Compile Include="$(ContentFingerprintsCsFile)" />
+            <FileWrites Include="$(ContentFingerprintsCsFile)" />
+        </ItemGroup>
+    </Target>
+
+    <!--
+        Override the shared static web assets registration with a webgl-
+        specific version that publishes content under fingerprinted URLs
+        by overriding RelativePath on each candidate asset. The last-seen
+        target definition wins in MSBuild, so this replaces the default
+        in ContentPipeline.targets when the import order is preserved.
+    -->
+    <Target Name="_ResolveContentPipelineStaticWebAssets"
+                    DependsOnTargets="BuildContent;_BuildContentFingerprints"
+                    Condition="'$(StaticWebAssetsSdkBuildTasksAssembly)' != ''">
+
+        <!--
+            Primary (non-compressed) assets: Identity is the source file path,
+            RelativePath is the fingerprinted URL-relative path that
+            DefineStaticWebAssets uses to expose the asset to the dev server
+            and to publish.
+
+            ContentRoot is the "wwwroot" folder inside the content output
+            tree.  As with a project's physical wwwroot folder, that segment
+            is the static web root — URLs (and publish paths under the app's
+            wwwroot) start below it, so an asset encoded to
+            ".../Output/wwwroot/Content/x.webp" publishes to
+            "wwwroot/Content/x.webp" and is served at "Content/x.webp".
+        -->
+        <DefineStaticWebAssets
+            Condition="'@(_FingerprintedContentAsset)' != ''"
+            CandidateAssets="@(_FingerprintedContentAsset)"
+            SourceType="Computed"
+            SourceId="$(PackageId)"
+            ContentRoot="$(ContentOutputDir)wwwroot\"
+            BasePath="$(StaticWebAssetBasePath)"
+            AssetKind="All"
+            AssetMode="CurrentProject"
+            AssetRole="Primary"
+            AssetMergeSource="$(StaticWebAssetMergeTarget)"
+            FingerprintCandidates="false"
+            CopyToOutputDirectory="Never"
+            CopyToPublishDirectory="PreserveNewest">
+            <Output TaskParameter="Assets" ItemName="StaticWebAsset" />
+            <Output TaskParameter="Assets" ItemName="_ContentPipelineStaticWebAsset" />
+        </DefineStaticWebAssets>
+
+        <DefineStaticWebAssetEndpoints
+            Condition="'@(_ContentPipelineStaticWebAsset)' != ''"
+            CandidateAssets="@(_ContentPipelineStaticWebAsset)"
+            ExistingEndpoints="@(StaticWebAssetEndpoint)"
+            ContentTypeMappings="@(StaticWebAssetContentTypeMapping)">
+            <Output TaskParameter="Endpoints" ItemName="StaticWebAssetEndpoint" />
+        </DefineStaticWebAssetEndpoints>
+
+    </Target>
+
+    <!-- ─────── The launch screen's page (web SDK projects) ─────── -->
+
+    <!--
+        _GenerateLaunchScreenPage – fills the launch screen into the project's page and app
+        manifest, and serves the generated files in their place.
+
+        The page (wwwroot/$(LaunchScreenPage), index.html by default) is a template with two
+        placeholders, HTML comments reading 'launch-screen:head' at the start of <head> (so the
+        color is in the page's first bytes) and 'launch-screen:body' at the start of <body>. The
+        build tool's launch-page command fills them with the launch color, #splash, and the logo
+        and branding at their fingerprinted URLs; the engine fades #splash out once the first frame
+        is on screen. The page's app manifest (wwwroot/$(LaunchScreenManifest), app.webmanifest by
+        default), if there is one, gets the launch color as an installed app's background and theme
+        colors. Other manifests (an about page's, say) are left alone.
+
+        The generated files replace the project's as static web assets, before the SDK fills in
+        the page's other fingerprint placeholders (its HTML asset placeholders targets), so the page
+        and manifest are served and published as if they were the project's own. Once per build.
+    -->
+    <!--
+        _FindLaunchScreenPage finds the page and manifest to fill in. A publish's second project
+        instance reads the assets the build recorded, where the generated page has already taken
+        the project's place: then there's nothing more to do.
+    -->
+    <Target Name="_FindLaunchScreenPage"
+                    BeforeTargets="ResolveHtmlAssetPlaceholdersBuildConfiguration;ResolveHtmlAssetPlaceholdersPublishConfiguration"
+                    DependsOnTargets="_PrepareLaunchScreen"
+                    Condition="'$(GenerateWebPage)' != 'false' and '$(StaticWebAssetsSdkBuildTasksAssembly)' != '' and '$(_LaunchScreenPageGenerated)' != 'true'">
+        <PropertyGroup>
+            <_LaunchScreenPageDir>$(ContentIntermediateDir)LaunchScreenPage\</_LaunchScreenPageDir>
+            <_LaunchScreenPageFile>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\wwwroot\$(LaunchScreenPage)'))</_LaunchScreenPageFile>
+            <_LaunchScreenGeneratedPageFile>$([System.IO.Path]::GetFullPath('$(_LaunchScreenPageDir)$(LaunchScreenPage)'))</_LaunchScreenGeneratedPageFile>
+            <_LaunchScreenManifestFile>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\wwwroot\$(LaunchScreenManifest)'))</_LaunchScreenManifestFile>
+            <_LaunchScreenGeneratedPageSpec>$([System.String]::Copy('$(_LaunchScreenPageDir)$(LaunchScreenPage)').Replace('\', '/'))</_LaunchScreenGeneratedPageSpec>
+            <_LaunchScreenPageSpec>wwwroot/$(LaunchScreenPage.Replace('\', '/'))</_LaunchScreenPageSpec>
+            <_LaunchScreenManifestSpec>wwwroot/$(LaunchScreenManifest.Replace('\', '/'))</_LaunchScreenManifestSpec>
+        </PropertyGroup>
+        <ItemGroup>
+            <!--
+                The project's own (other projects contribute pages too). By the item it came from,
+                wwwroot/<page> relative to the project, or by its full path, but not by RelativePath,
+                which can carry a fingerprint token (index#[.{fingerprint}]?.html). Not by the full path
+                alone: the SDK resolves links in it (macOS reaches /var and /tmp through /private), so a
+                project built by a linked path has an asset path that isn't the one written here.
+            -->
+            <!-- The project's assets, each with its item's spec in forward slashes (a condition can't
+                      call a function on metadata, so it's worked out here) -->
+            <_LaunchScreenCandidate Include="@(StaticWebAsset)" Condition="'%(SourceId)' == '$(PackageId)'">
+                <_LaunchScreenSpec>$([System.String]::Copy('%(OriginalItemSpec)').Replace('\', '/'))</_LaunchScreenSpec>
+            </_LaunchScreenCandidate>
+            <_LaunchScreenPageTemplate Include="@(_LaunchScreenCandidate)" RemoveMetadata="_LaunchScreenSpec"
+                                                                  Condition="'%(SourceType)' == 'Discovered' and ('%(_LaunchScreenSpec)' == '$(_LaunchScreenPageSpec)' or '%(FullPath)' == '$(_LaunchScreenPageFile)')" />
+            <_WebPageManifest Include="@(_LaunchScreenCandidate)" RemoveMetadata="_LaunchScreenSpec"
+                                                Condition="'%(SourceType)' == 'Discovered' and ('%(_LaunchScreenSpec)' == '$(_LaunchScreenManifestSpec)' or '%(FullPath)' == '$(_LaunchScreenManifestFile)')" />
+            <!-- Only the launch screen changes the manifest; without one it's served as it is -->
+            <_LaunchScreenManifestTemplate Include="@(_WebPageManifest)" Condition="'@(LaunchScreen)' != ''" />
+            <!-- Ours, by the path it was defined with, or its full path (as for the template) -->
+            <_LaunchScreenGeneratedPage Include="@(_LaunchScreenCandidate)"
+                                                                    Condition="'%(_LaunchScreenSpec)' == '$(_LaunchScreenGeneratedPageSpec)' or '%(FullPath)' == '$(_LaunchScreenGeneratedPageFile)'" />
+            <_LaunchScreenCandidate Remove="@(_LaunchScreenCandidate)" />
+        </ItemGroup>
+        <PropertyGroup Condition="'@(_LaunchScreenGeneratedPage)' != ''">
+            <_LaunchScreenPageGenerated>true</_LaunchScreenPageGenerated>
+        </PropertyGroup>
+    </Target>
+
+    <!--
+        _ExcludeLaunchScreenTemplatesFromPublish – the page and manifest templates aren't published:
+        the SDK keeps static web assets out of the published content, and the generated files have
+        taken their place as assets. Before the publish's file list is made (in both project
+        instances), which is after the static web assets are found.
+    -->
+    <Target Name="_ExcludeLaunchScreenTemplatesFromPublish"
+                    BeforeTargets="ComputeResolvedFilesToPublishList;GetCopyToPublishDirectoryItems"
+                    Condition="'$(GenerateWebPage)' != 'false' and '$(StaticWebAssetsSdkBuildTasksAssembly)' != ''">
+        <PropertyGroup>
+            <_LaunchScreenTemplatePage>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\wwwroot\$(LaunchScreenPage)'))</_LaunchScreenTemplatePage>
+            <_LaunchScreenTemplateManifest Condition="'@(LaunchScreen)' != ''">$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\wwwroot\$(LaunchScreenManifest)'))</_LaunchScreenTemplateManifest>
+        </PropertyGroup>
+        <ItemGroup>
+            <_LaunchScreenTemplateContent Include="@(Content)"
+                                                                        Condition="'%(FullPath)' == '$(_LaunchScreenTemplatePage)' or '%(FullPath)' == '$(_LaunchScreenTemplateManifest)'" />
+            <Content Remove="@(_LaunchScreenTemplateContent)" />
+            <_LaunchScreenTemplateCopy Include="@(ContentWithTargetPath)"
+                                                                  Condition="'%(FullPath)' == '$(_LaunchScreenTemplatePage)' or '%(FullPath)' == '$(_LaunchScreenTemplateManifest)'" />
+            <ContentWithTargetPath Remove="@(_LaunchScreenTemplateCopy)" />
+        </ItemGroup>
+    </Target>
+
+    <!-- _GenerateLaunchScreenPage – writes and serves the filled-in page and manifest -->
+    <Target Name="_GenerateLaunchScreenPage"
+                    AfterTargets="_FindLaunchScreenPage"
+                    DependsOnTargets="_BuildContentFingerprints"
+                    Condition="'$(GenerateWebPage)' != 'false' and '$(StaticWebAssetsSdkBuildTasksAssembly)' != '' and '$(_LaunchScreenPageGenerated)' != 'true'">
+        <!-- The page: what's about the game from its own, if it has one, and the rest from the build -->
+        <PropertyGroup>
+            <_WebPageTemplateFile>$(ContentIntermediateDir)WebPageTemplate\$(LaunchScreenPage)</_WebPageTemplateFile>
+            <_WebPageManifestName>@(_WebPageManifest->'%(Filename)%(Extension)')</_WebPageManifestName>
+            <_WebGameTitle>$(GameTitle)</_WebGameTitle>
+            <_WebGameTitle Condition="'$(_WebGameTitle)' == ''">$(AssemblyName)</_WebGameTitle>
+            <_WebPageHasLaunchScreen>false</_WebPageHasLaunchScreen>
+            <_WebPageHasLaunchScreen Condition="'@(LaunchScreen)' != ''">true</_WebPageHasLaunchScreen>
+        </PropertyGroup>
+        <ItemGroup>
+            <_WebPreloadContent Include="@(TextureContent->'%(OutputRelativeDir)%(OutputName)')" Condition="'%(TextureContent.Preload)' == 'true'" />
+            <_WebPreloadContent Include="@(ShaderContent->'%(OutputRelativeDir)%(OutputName)')" Condition="'%(ShaderContent.Preload)' == 'true'" />
+            <_WebPreloadContent Include="@(SoundContent->'%(OutputRelativeDir)%(OutputName)')" Condition="'%(SoundContent.Preload)' == 'true'" />
+            <_WebPreloadContent Include="@(MusicContent->'%(OutputRelativeDir)%(OutputName)')" Condition="'%(MusicContent.Preload)' == 'true'" />
+            <_WebPreloadContent Include="@(DataContent->'%(OutputRelativeDir)%(OutputName)%(Extension)')" Condition="'%(DataContent.Preload)' == 'true'" />
+        </ItemGroup>
+        <_GenerateWebPage SourcePage="@(_LaunchScreenPageTemplate->'%(FullPath)')"
+                                            OutputPage="$(_WebPageTemplateFile)"
+                                            Title="$(_WebGameTitle)"
+                                            ManifestName="$(_WebPageManifestName)"
+                                            StartupModules="@(WebStartupModule)"
+                                            MainModule="_dotgame/main.js"
+                                            PageModules="@(WebPageModule)"
+                                            PreloadContent="@(_WebPreloadContent)"
+                                            ContentOutputDir="$(ContentOutputDir)"
+                                            HasLaunchScreen="$(_WebPageHasLaunchScreen)" />
+
+        <!-- The images' fingerprinted URLs, from the content fingerprints -->
+        <ItemGroup Condition="'@(LaunchScreen)' != ''">
+            <_LaunchScreenLogoAsset Include="@(_FingerprintedContentAsset)"
+                                                            Condition="$([System.String]::Copy('%(RelativePath)').StartsWith('Content/LaunchScreen/logo'))" />
+            <_LaunchScreenBrandingAsset Include="@(_FingerprintedContentAsset)"
+                                                                    Condition="$([System.String]::Copy('%(RelativePath)').StartsWith('Content/LaunchScreen/branding'))" />
+        </ItemGroup>
+        <Error Condition="'@(LaunchScreen)' != '' and '@(_LaunchScreenLogoAsset)' == ''"
+                      Text="The launch screen's logo wasn't in the content output (Content/LaunchScreen/logo$(LaunchScreenImageExtension))." />
+        <PropertyGroup Condition="'@(LaunchScreen)' != ''">
+            <!-- The fingerprinted URLs: 'Content/LaunchScreen/logo#[.{fingerprint=<hash>}]!.webp' is served as 'Content/LaunchScreen/logo.<hash>.webp' -->
+            <_LaunchScreenLogoPath>@(_LaunchScreenLogoAsset->'%(RelativePath)')</_LaunchScreenLogoPath>
+            <_LaunchScreenBrandingPath>@(_LaunchScreenBrandingAsset->'%(RelativePath)')</_LaunchScreenBrandingPath>
+            <_LaunchScreenLogoUrl>$([System.Text.RegularExpressions.Regex]::Replace('$(_LaunchScreenLogoPath)', '#\[\.\{fingerprint=([^}]+)\}\]!?', '.$1'))</_LaunchScreenLogoUrl>
+            <_LaunchScreenBrandingUrl Condition="'$(_LaunchScreenBrandingPath)' != ''">$([System.Text.RegularExpressions.Regex]::Replace('$(_LaunchScreenBrandingPath)', '#\[\.\{fingerprint=([^}]+)\}\]!?', '.$1'))</_LaunchScreenBrandingUrl>
+            <_LaunchScreenPageArguments>--page-template &quot;$(_WebPageTemplateFile)&quot; --page-output &quot;$(_LaunchScreenPageDir)$(LaunchScreenPage)&quot; --logo-url &quot;$(_LaunchScreenLogoUrl)&quot;</_LaunchScreenPageArguments>
+            <_LaunchScreenPageArguments Condition="'$(_LaunchScreenBrandingUrl)' != ''">$(_LaunchScreenPageArguments) --branding-url &quot;$(_LaunchScreenBrandingUrl)&quot;</_LaunchScreenPageArguments>
+            <_LaunchScreenPageArguments Condition="'@(_LaunchScreenManifestTemplate)' != ''">$(_LaunchScreenPageArguments) --manifest-template &quot;@(_LaunchScreenManifestTemplate->'%(FullPath)')&quot; --manifest-output &quot;$(_LaunchScreenPageDir)@(_LaunchScreenManifestTemplate->'%(Filename)%(Extension)')&quot;</_LaunchScreenPageArguments>
+        </PropertyGroup>
+
+        <RemoveDir Directories="$(_LaunchScreenPageDir)" />
+        <Exec Condition="'@(LaunchScreen)' != ''" Command="$(ContentPipelineBuildCommand) launch-page $(_LaunchScreenDescription) $(_LaunchScreenPageArguments)" />
+        <Copy Condition="'@(LaunchScreen)' == ''" SourceFiles="$(_WebPageTemplateFile)" DestinationFolder="$(_LaunchScreenPageDir)" />
+
+        <!-- The generated files, as the project's assets of the same paths -->
+        <PropertyGroup>
+            <_LaunchScreenPageRelativePath>@(_LaunchScreenPageTemplate->'%(RelativePath)')</_LaunchScreenPageRelativePath>
+            <_LaunchScreenPageRelativePath Condition="'$(_LaunchScreenPageRelativePath)' == ''">$(LaunchScreenPage)</_LaunchScreenPageRelativePath>
+            <_LaunchScreenManifestName>@(_LaunchScreenManifestTemplate->'%(Filename)%(Extension)')</_LaunchScreenManifestName>
+            <_LaunchScreenManifestRelativePath>@(_LaunchScreenManifestTemplate->'%(RelativePath)')</_LaunchScreenManifestRelativePath>
+        </PropertyGroup>
+        <ItemGroup>
+            <_LaunchScreenGeneratedAsset Include="$(_LaunchScreenPageDir)$(LaunchScreenPage)">
+                <RelativePath>$(_LaunchScreenPageRelativePath)</RelativePath>
+            </_LaunchScreenGeneratedAsset>
+            <_LaunchScreenGeneratedAsset Include="$(_LaunchScreenPageDir)$(_LaunchScreenManifestName)"
+                                                                      Condition="'$(_LaunchScreenManifestName)' != ''">
+                <RelativePath>$(_LaunchScreenManifestRelativePath)</RelativePath>
+            </_LaunchScreenGeneratedAsset>
+            <_LaunchScreenReplacedAsset Include="@(_LaunchScreenPageTemplate);@(_LaunchScreenManifestTemplate)" />
+        </ItemGroup>
+        <DefineStaticWebAssets CandidateAssets="@(_LaunchScreenGeneratedAsset)"
+                                                      SourceType="Computed"
+                                                      SourceId="$(PackageId)"
+                                                      ContentRoot="$(_LaunchScreenPageDir)"
+                                                      BasePath="$(StaticWebAssetBasePath)"
+                                                      AssetKind="All"
+                                                      AssetMode="All"
+                                                      AssetRole="Primary"
+                                                      AssetMergeSource="$(StaticWebAssetMergeTarget)"
+                                                      FingerprintCandidates="true"
+                                                      CopyToOutputDirectory="Never"
+                                                      CopyToPublishDirectory="PreserveNewest">
+            <Output TaskParameter="Assets" ItemName="_LaunchScreenGeneratedStaticWebAsset" />
+        </DefineStaticWebAssets>
+        <FilterStaticWebAssetEndpoints Endpoints="@(StaticWebAssetEndpoint)"
+                                                                      Assets="@(_LaunchScreenReplacedAsset)"
+                                                                      Filters="">
+            <Output TaskParameter="FilteredEndpoints" ItemName="_LaunchScreenReplacedEndpoint" />
+        </FilterStaticWebAssetEndpoints>
+        <ItemGroup>
+            <StaticWebAsset Remove="@(_LaunchScreenReplacedAsset)" />
+            <StaticWebAsset Include="@(_LaunchScreenGeneratedStaticWebAsset)" />
+            <StaticWebAssetEndpoint Remove="@(_LaunchScreenReplacedEndpoint)" />
+        </ItemGroup>
+        <DefineStaticWebAssetEndpoints CandidateAssets="@(_LaunchScreenGeneratedStaticWebAsset)"
+                                                                      ExistingEndpoints="@(StaticWebAssetEndpoint)"
+                                                                      ContentTypeMappings="@(StaticWebAssetContentTypeMapping)">
+            <Output TaskParameter="Endpoints" ItemName="StaticWebAssetEndpoint" />
+        </DefineStaticWebAssetEndpoints>
+        <ItemGroup>
+            <FileWrites Include="@(_LaunchScreenGeneratedAsset)" />
+        </ItemGroup>
+        <PropertyGroup>
+            <_LaunchScreenPageGenerated>true</_LaunchScreenPageGenerated>
+        </PropertyGroup>
+    </Target>
+
+</Project>

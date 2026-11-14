@@ -1,0 +1,128 @@
+<Project>
+
+    <!--
+        ContentPipeline.Tasks.targets
+
+        The content pipelines' MSBuild tasks are compiled task assemblies, built
+        from source on demand: the framework pipeline's (tasks\, imported here)
+        and any other pipeline's built the same way.  They were inline
+        RoslynCodeTaskFactory tasks, which MSBuild compiles again in every build
+        process, a compiler launch per task: 1-5 seconds each, seven or more in a
+        build that changes nothing.
+
+        A pipeline registers its task project with a _ContentPipelineTasksProject
+        item:
+            Include        the project (netstandard2.0, so it loads in dotnet build
+                                          and in Visual Studio)
+            AssemblyFile   where it's built: bin\<hash>\ under the project, the hash
+                                          of its sources and the project file (evaluated, since
+                                          UsingTask needs the path)
+        adds each source to _ContentPipelineTasksSource,
+        and points its UsingTask elements at that AssemblyFile.  Every target that
+        runs one of its tasks depends on _BuildContentPipelineTasks.
+
+        Building to a folder named by the sources' hash means an assembly is
+        never rebuilt in place: an MSBuild node that loaded an older build (nodes
+        outlive builds) never blocks a new one, and the build only has to check
+        that the file exists.  Old folders are left behind, a few kilobytes each.
+    -->
+
+    <!--
+        The framework's clone, passed to the pipeline projects built on demand when the game's build names
+        it (projects in other repositories find the framework only through it). Not passed empty: a global
+        property would override the framework's own default, its own folder.
+    -->
+    <PropertyGroup>
+        <_DotGameFrameworkDirProperty Condition="'$(DotGameFrameworkDir)' != ''">DotGameFrameworkDir=$(DotGameFrameworkDir)</_DotGameFrameworkDirProperty>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(FrameworkContentPipelineTasksAssembly)' == ''">
+        <_FrameworkContentPipelineTasksDir>$(MSBuildThisFileDirectory)tasks\</_FrameworkContentPipelineTasksDir>
+        <_FrameworkContentPipelineTasksProject>$(_FrameworkContentPipelineTasksDir)DotGame.Framework.ContentPipeline.Tasks.csproj</_FrameworkContentPipelineTasksProject>
+
+        <!-- NOTE: Evaluated, so each source is named here and below, and a build fails on one that's missed -->
+        <_FrameworkContentPipelineTasksHashes>$(_FrameworkContentPipelineTasksHashes)$([MSBuild]::StableStringHash($([System.IO.File]::ReadAllText('$(_FrameworkContentPipelineTasksDir)ContentToolIdentity.cs'))))</_FrameworkContentPipelineTasksHashes>
+        <_FrameworkContentPipelineTasksHashes>$(_FrameworkContentPipelineTasksHashes)$([MSBuild]::StableStringHash($([System.IO.File]::ReadAllText('$(_FrameworkContentPipelineTasksDir)_AddIndexMetadata.cs'))))</_FrameworkContentPipelineTasksHashes>
+        <_FrameworkContentPipelineTasksHashes>$(_FrameworkContentPipelineTasksHashes)$([MSBuild]::StableStringHash($([System.IO.File]::ReadAllText('$(_FrameworkContentPipelineTasksDir)_ApplyWebPrecompression.cs'))))</_FrameworkContentPipelineTasksHashes>
+        <_FrameworkContentPipelineTasksHashes>$(_FrameworkContentPipelineTasksHashes)$([MSBuild]::StableStringHash($([System.IO.File]::ReadAllText('$(_FrameworkContentPipelineTasksDir)_EncodeContentItems.cs'))))</_FrameworkContentPipelineTasksHashes>
+        <_FrameworkContentPipelineTasksHashes>$(_FrameworkContentPipelineTasksHashes)$([MSBuild]::StableStringHash($([System.IO.File]::ReadAllText('$(_FrameworkContentPipelineTasksDir)_FingerprintNonJsHtmlAssetPlaceholdersTask.cs'))))</_FrameworkContentPipelineTasksHashes>
+        <_FrameworkContentPipelineTasksHashes>$(_FrameworkContentPipelineTasksHashes)$([MSBuild]::StableStringHash($([System.IO.File]::ReadAllText('$(_FrameworkContentPipelineTasksDir)_GenerateContentFingerprints.cs'))))</_FrameworkContentPipelineTasksHashes>
+        <_FrameworkContentPipelineTasksHashes>$(_FrameworkContentPipelineTasksHashes)$([MSBuild]::StableStringHash($([System.IO.File]::ReadAllText('$(_FrameworkContentPipelineTasksDir)_GenerateContentManifest.cs'))))</_FrameworkContentPipelineTasksHashes>
+        <_FrameworkContentPipelineTasksHashes>$(_FrameworkContentPipelineTasksHashes)$([MSBuild]::StableStringHash($([System.IO.File]::ReadAllText('$(_FrameworkContentPipelineTasksDir)_GenerateWebPage.cs'))))</_FrameworkContentPipelineTasksHashes>
+        <_FrameworkContentPipelineTasksHashes>$(_FrameworkContentPipelineTasksHashes)$([MSBuild]::StableStringHash($([System.IO.File]::ReadAllText('$(_FrameworkContentPipelineTasksDir)_ProbeMediaDurations.cs'))))</_FrameworkContentPipelineTasksHashes>
+        <_FrameworkContentPipelineTasksHashes>$(_FrameworkContentPipelineTasksHashes)$([MSBuild]::StableStringHash($([System.IO.File]::ReadAllText('$(_FrameworkContentPipelineTasksDir)_PruneContentOutputs.cs'))))</_FrameworkContentPipelineTasksHashes>
+        <_FrameworkContentPipelineTasksHashes>$(_FrameworkContentPipelineTasksHashes)$([MSBuild]::StableStringHash($([System.IO.File]::ReadAllText('$(_FrameworkContentPipelineTasksDir)_ResolveContentCacheRoot.cs'))))</_FrameworkContentPipelineTasksHashes>
+        <_FrameworkContentPipelineTasksHashes>$(_FrameworkContentPipelineTasksHashes)$([MSBuild]::StableStringHash($([System.IO.File]::ReadAllText('$(_FrameworkContentPipelineTasksDir)_ResolveProcessorCommand.cs'))))</_FrameworkContentPipelineTasksHashes>
+        <_FrameworkContentPipelineTasksHashes>$(_FrameworkContentPipelineTasksHashes)$([MSBuild]::StableStringHash($([System.IO.File]::ReadAllText('$(_FrameworkContentPipelineTasksDir)_SaveToContentCache.cs'))))</_FrameworkContentPipelineTasksHashes>
+        <_FrameworkContentPipelineTasksHashes>$(_FrameworkContentPipelineTasksHashes)$([MSBuild]::StableStringHash($([System.IO.File]::ReadAllText('$(_FrameworkContentPipelineTasksDir)_SaveToContentGroupCache.cs'))))</_FrameworkContentPipelineTasksHashes>
+        <_FrameworkContentPipelineTasksHashes>$(_FrameworkContentPipelineTasksHashes)$([MSBuild]::StableStringHash($([System.IO.File]::ReadAllText('$(_FrameworkContentPipelineTasksDir)_TryRestoreFromContentCache.cs'))))</_FrameworkContentPipelineTasksHashes>
+        <_FrameworkContentPipelineTasksHashes>$(_FrameworkContentPipelineTasksHashes)$([MSBuild]::StableStringHash($([System.IO.File]::ReadAllText('$(_FrameworkContentPipelineTasksDir)_TryRestoreFromContentGroupCache.cs'))))</_FrameworkContentPipelineTasksHashes>
+        <_FrameworkContentPipelineTasksHashes>$(_FrameworkContentPipelineTasksHashes)$([MSBuild]::StableStringHash($([System.IO.File]::ReadAllText('$(_FrameworkContentPipelineTasksDir)_WriteSettingsStamps.cs'))))</_FrameworkContentPipelineTasksHashes>
+        <_FrameworkContentPipelineTasksHash>$([MSBuild]::StableStringHash('$(_FrameworkContentPipelineTasksHashes)'))-$([MSBuild]::StableStringHash($([System.IO.File]::ReadAllText('$(_FrameworkContentPipelineTasksProject)'))))</_FrameworkContentPipelineTasksHash>
+        <FrameworkContentPipelineTasksAssembly>$(_FrameworkContentPipelineTasksDir)bin\$(_FrameworkContentPipelineTasksHash)\DotGame.Framework.ContentPipeline.Tasks.dll</FrameworkContentPipelineTasksAssembly>
+
+        <!--
+            The task projects always build for the build machine, whatever the game is building, and
+            always really build: an IDE's design-time build (DesignTimeBuild, SkipCompilerExecution,
+            ProvideCommandLineArgs, BuildingProject) runs the tasks too (the web fingerprints), and
+            its properties would otherwise reach the task project, whose CoreCompile then skips the
+            compiler and copies the last build's assembly into the new hash's folder, where it stays.
+        -->
+        <_ContentPipelineTasksRemoveProperties>TargetFramework;TargetFrameworks;RuntimeIdentifier;RuntimeIdentifiers;SelfContained;Platform;PlatformTarget;PublishTrimmed;PublishAot;PublishSingleFile;PublishReadyToRun;_IsPublishing;OutDir;OutputPath;BaseOutputPath;IntermediateOutputPath;BaseIntermediateOutputPath;MSBuildProjectExtensionsPath;PublishDir;OutputType;AppendRuntimeIdentifierToOutputPath;AppendTargetFrameworkToOutputPath;ArtifactsPath;UseArtifactsOutput;DotGameBuildRoot;DesignTimeBuild;SkipCompilerExecution;ProvideCommandLineArgs;BuildingProject;BuildingInsideVisualStudio</_ContentPipelineTasksRemoveProperties>
+    </PropertyGroup>
+
+    <ItemGroup Condition="'$(_FrameworkContentPipelineTasksHash)' != ''">
+        <_ContentPipelineTasksProject Include="$(_FrameworkContentPipelineTasksProject)"
+                                                                    AssemblyFile="$(FrameworkContentPipelineTasksAssembly)" />
+        <_ContentPipelineTasksSource Include="$(_FrameworkContentPipelineTasksDir)ContentToolIdentity.cs" />
+        <_ContentPipelineTasksSource Include="$(_FrameworkContentPipelineTasksDir)_AddIndexMetadata.cs" />
+        <_ContentPipelineTasksSource Include="$(_FrameworkContentPipelineTasksDir)_ApplyWebPrecompression.cs" />
+        <_ContentPipelineTasksSource Include="$(_FrameworkContentPipelineTasksDir)_EncodeContentItems.cs" />
+        <_ContentPipelineTasksSource Include="$(_FrameworkContentPipelineTasksDir)_FingerprintNonJsHtmlAssetPlaceholdersTask.cs" />
+        <_ContentPipelineTasksSource Include="$(_FrameworkContentPipelineTasksDir)_GenerateContentFingerprints.cs" />
+        <_ContentPipelineTasksSource Include="$(_FrameworkContentPipelineTasksDir)_GenerateContentManifest.cs" />
+        <_ContentPipelineTasksSource Include="$(_FrameworkContentPipelineTasksDir)_GenerateWebPage.cs" />
+        <_ContentPipelineTasksSource Include="$(_FrameworkContentPipelineTasksDir)_ProbeMediaDurations.cs" />
+        <_ContentPipelineTasksSource Include="$(_FrameworkContentPipelineTasksDir)_PruneContentOutputs.cs" />
+        <_ContentPipelineTasksSource Include="$(_FrameworkContentPipelineTasksDir)_ResolveContentCacheRoot.cs" />
+        <_ContentPipelineTasksSource Include="$(_FrameworkContentPipelineTasksDir)_ResolveProcessorCommand.cs" />
+        <_ContentPipelineTasksSource Include="$(_FrameworkContentPipelineTasksDir)_SaveToContentCache.cs" />
+        <_ContentPipelineTasksSource Include="$(_FrameworkContentPipelineTasksDir)_SaveToContentGroupCache.cs" />
+        <_ContentPipelineTasksSource Include="$(_FrameworkContentPipelineTasksDir)_TryRestoreFromContentCache.cs" />
+        <_ContentPipelineTasksSource Include="$(_FrameworkContentPipelineTasksDir)_TryRestoreFromContentGroupCache.cs" />
+        <_ContentPipelineTasksSource Include="$(_FrameworkContentPipelineTasksDir)_WriteSettingsStamps.cs" />
+    </ItemGroup>
+
+    <!-- From a package, the tasks are prebuilt and no project is registered: nothing to build -->
+    <Target Name="_BuildContentPipelineTasks" Condition="'@(_ContentPipelineTasksProject)' != ''">
+        <!-- The hash covers the sources it names, so another one would be missed -->
+        <ItemGroup>
+            <_ContentPipelineTasksSourceFile Include="%(_ContentPipelineTasksProject.RootDir)%(_ContentPipelineTasksProject.Directory)*.cs" />
+            <_ContentPipelineTasksSourceFile Remove="@(_ContentPipelineTasksSource)" />
+            <_ContentPipelineTasksToBuild Include="@(_ContentPipelineTasksProject)" Condition="!Exists('%(AssemblyFile)')">
+                <OutDir>$([System.IO.Path]::GetDirectoryName('%(AssemblyFile)'))\</OutDir>
+            </_ContentPipelineTasksToBuild>
+        </ItemGroup>
+        <Error Condition="'@(_ContentPipelineTasksSourceFile)' != ''"
+                      Text="The content pipeline's tasks are built to a folder named by the hash of their sources, so '@(_ContentPipelineTasksSourceFile)' wouldn't rebuild them: add it to that hash and to _ContentPipelineTasksSource, in the targets that register its project." />
+
+        <!--
+            Restore and build are separate MSBuild task calls with different global
+            properties, so the build gets a fresh evaluation that imports the restore
+            output (as for the content pipeline build tool).
+        -->
+        <MSBuild Condition="'@(_ContentPipelineTasksToBuild)' != ''"
+                          Projects="@(_ContentPipelineTasksToBuild)"
+                          Targets="Restore"
+                          Properties="Platform=AnyCPU;Configuration=Release;$(_DotGameFrameworkDirProperty);_ContentPipelineTasksRestore=true"
+                          RemoveProperties="$(_ContentPipelineTasksRemoveProperties)" />
+        <MSBuild Condition="'@(_ContentPipelineTasksToBuild)' != ''"
+                          Projects="@(_ContentPipelineTasksToBuild)"
+                          Targets="Build"
+                          Properties="Platform=AnyCPU;Configuration=Release;$(_DotGameFrameworkDirProperty);OutDir=%(_ContentPipelineTasksToBuild.OutDir)"
+                          RemoveProperties="$(_ContentPipelineTasksRemoveProperties.Replace(';OutDir;', ';'))" />
+        <Error Condition="!Exists('%(_ContentPipelineTasksProject.AssemblyFile)')"
+                      Text="The content pipeline tasks weren't built to '%(_ContentPipelineTasksProject.AssemblyFile)'." />
+    </Target>
+
+</Project>

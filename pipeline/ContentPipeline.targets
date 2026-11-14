@@ -1,0 +1,1656 @@
+<Project>
+
+    <!--
+        ContentPipeline.targets
+
+        Shared content pipeline infrastructure: item types, tasks,
+        build orchestration, incremental build, clean, output copy, and
+        static web asset registration.
+
+        Platform-specific files define processor commands before importing
+        this file:
+            ContentPipeline.desktop.targets  – Desktop (SPIR-V, WAV)
+            ContentPipeline.webgl.targets    – WebGL / WASM  (GLSL, FLAC)
+            ContentPipeline.android.targets  – Android (GLSL, WAV)
+            ContentPipeline.ios.targets      – iOS (MSL, WAV)
+
+        Each content type is processed by a configurable processor.  Set
+        these properties in the platform-specific targets file (or override
+        them before the Import):
+
+            <Type>ContentProcessorCommand          Full command-line template.
+                                                                                              The tokens {InputFile},
+                                                                                              {OutputFile}, {IntermediateDir},
+                                                                                              and {Quality} are replaced
+                                                                                              at build time with absolute paths
+                                                                                              / values.
+            <Type>ContentProcessorOutputExtension  File extension of the output
+                                                                                              (including the leading dot).
+            <Type>ContentProcessorDeps             Optional semicolon-separated
+                                                                                              files that trigger a rebuild when
+                                                                                              changed (e.g. the tools of a
+                                                                                              custom command).  These are
+                                                                                              ALSO hashed by full bytes into the
+                                                                                              cache parameters hash, so changing
+                                                                                              one self-invalidates that type's
+                                                                                              cache.
+
+        where <Type> is Texture, Shader, Sound, or Music.  Every processed
+        content type has its own command in the content pipeline build tool,
+        DotGame.Framework.ContentPipeline.BuildTool (tool/; see
+        ContentPipeline.BuildTool.props): texture, sound, music and shader,
+        so encoder settings live in one place per type.
+
+        Content build cache (single source of truth):
+            Deterministic encodes (textures, shaders, sound, and music) are cached by
+            SOURCE hash + a PARAMETERS hash.  The cache key, on-disk layout,
+            restore, and save all live in ONE place — the generic in-process
+            MSBuild tasks _TryRestoreFromContentCache and _SaveToContentCache —
+            so there is no per-type or tool-vs-MSBuild hash logic to keep
+            in sync.  The encoder commands themselves are cache-agnostic: they
+            just encode; the build wraps each <Exec> with a restore-before /
+            save-after around the shared tasks.
+
+            parametersHash = SHA256(
+                    normalizedCommandTemplate            # the PRE-substitution processor
+                                                                                              # template; each absolute tool path
+                                                                                              # (ToolPaths) is replaced by its bare
+                                                                                              # filename so the hash reflects tool
+                                                                                              # identity but stays stable across
+                                                                                              # machines / CI (cache sharing).
+                + per ProcessorDeps file: name + SHA256(bytes)   # full-byte tool hash
+                + ExtraKey )                           # the content type's version and
+                                                                                              # per-item non-template values, e.g.
+                                                                                              # the resolved texture quality.
+            truncated to 16 hex chars.
+
+            Layout: {CacheDir}/{parametersHash}/{sourceHash}{OutputExtension}, with
+            the entry's size beside it, so an entry that isn't what was written is a
+            miss.
+            The hash does NOT include the platform name, so two platforms that
+            encode a source identically share cache entries; any divergence in
+            the command template, tool filename, ProcessorDeps bytes, or ExtraKey
+            yields a different hash and its own partition automatically.
+
+            The build tool's own bytes are deliberately NOT in the key: then any
+            change to the tool would invalidate the cache of every content type.
+            Instead ExtraKey holds a version per content type, kept in
+            ContentVersions.props beside the tool's sources; increment it when a
+            tool change can change that type's output.  The tool is still an
+            incremental build input, so a tool change re-runs the content targets,
+            which are then served from the cache unless a version changed.
+
+            A cache HIT is served
+            entirely in-process (hash + copy) so it never pays the encoder's
+            process start; only a genuine miss launches the encoder and then
+            populates the cache.  Later builds copy the cached artifact instead
+            of re-running the external encoders, turning clean / CI / first
+            builds into cheap file copies.
+
+            Cross-process stampede lock:  a multi-process (-m) build runs each
+            platform project in its own MSBuild node, so several projects can hit
+            the same source at once while the shared cache is still cold and each
+            independently see a miss.  To collapse those redundant encodes, a cold
+            miss takes a per-entry cross-process lock — a DeleteOnClose lock file
+            ({sourceHash}{ext}.lock) beside the cache entry, opened FileShare.None
+            — inside _TryRestoreFromContentCache; the first builder encodes while
+            the rest block, then re-check and serve the freshly written entry.
+            The lock is a file handle (not a thread-affine Mutex) so it hands off
+            cleanly from the restore task to _SaveToContentCache, which releases it
+            after the entry is written.  ContentCacheLockTimeoutMilliseconds bounds
+            the wait: on timeout (a crashed/stuck peer, or a genuinely long encode)
+            the waiter degrades to an independent encode so the lock can never
+            deadlock a build.  Correctness is unaffected either way — the lock only
+            removes duplicate work.
+
+            Controlled by ContentCacheDir and ContentCacheEnabled:
+                * ContentCacheDir defaults to ".dotgame\contentcache\" under the repository
+                    root, discovered by walking up from the project directory, so
+                    every project in the repository shares one cache regardless of
+                    whether the build was driven by a solution or by a direct
+                    `dotnet build|publish project.csproj`.
+                * Override ContentCacheDir to relocate the cache.
+                * Set ContentCacheEnabled to false to disable caching entirely.
+            The first populate writes a .gitignore that ignores everything in
+            .dotgame (or in the cache folder, if it's been relocated), since entries
+            are regenerable. It's never rewritten, so a project that wants to share
+            the cache through git can edit it, and decide how to store the files.
+
+            The cache is never trimmed by a build.  A cache hit refreshes the
+            entry's last write time (at most once a day), so it records when a
+            build last used the entry.  To remove entries no build has used for a
+            while, run the PruneContentCache target (see below).
+
+            To add caching for a NEW deterministic content type later:
+                1. Give it a version in ContentVersions.props, passed in ExtraKey,
+                      and/or a ProcessorDeps that lists its encoder tool(s).
+                2. In its Build* target, call _TryRestoreFromContentCache before
+                      the <Exec> (SourceFile, OutputFile, CacheDir=$(ContentCacheDir),
+                      CommandTemplate=the pre-substitution template, ToolPaths=the
+                      tool paths, ProcessorDeps, optional ExtraKey) and gate the
+                      <Message>/<Exec> on Restored != 'true'; then call
+                      _SaveToContentCache after the <Exec> with the returned
+                      CachePath.  No encoding id, no {CacheDir} token, no encoder-side
+                      cache code required.
+
+            Composite content (texture atlases, sound banks) is cached too, via
+            the many-to-one counterparts _TryRestoreFromContentGroupCache /
+            _SaveToContentGroupCache.  Their output is a function of an entire
+            ordered input SET rather than one source file, so the source hash
+            covers every member and the entry is a directory holding the
+            descriptor plus each generated page / part.
+
+        In web SDK projects, processed content is registered as static web
+        assets.  It isn't precompressed unless the project sets the SDK's
+        $(CompressionEnabled) to true (ContentPipeline.webgl.targets defaults it
+        to false): most hosts compress as they serve.  With it on,
+        the SDK writes .gz sidecars on build and .gz and .br on publish, for
+        content and application payload alike, skipping formats that are
+        already compressed (.webp, .ogg, .flac, ...).
+
+        External tool paths are resolved by ExternalTools.props and can be
+        overridden via MSBuild properties.  Set them in Directory.Build.props,
+        environment variables, or on the command line:
+            AstcEncExe         Path to Arm's astcenc ASTC encoder.
+            SlangCExe          Path to the slangc compiler.
+            SpirvCrossExe      Path to the spirv-cross tool.
+            Spirv2DxilExe      Path to Mesa's spirv2dxil (bundled).
+
+        All tools default to bare executable names for PATH resolution.
+        Vulkan SDK tools are detected automatically from the VULKAN_SDK
+        environment variable when it is set.
+
+        Consuming projects declare content items with Include paths and Link
+        metadata.  The Link directory determines the output-relative path and
+        the URL prefix for static web assets.  If Link is not set, the item's
+        path relative to the project is used.
+
+        Processed content is written to an intermediate directory under obj
+        by default (ContentOutputDir).  In non-web projects, content is
+        automatically copied to the output directory.  In web SDK projects
+        (Blazor, WASM), outputs are registered as static web assets.
+
+        Other properties:
+            ContentOutputDir   (optional)  Override the intermediate output
+                                                                          directory.  Defaults to obj.
+
+        Example (game project; the entry point selects the platform file):
+            <Import Project="<DotGame folder>\pipeline\build\DotGame.Framework.ContentPipeline.targets" />
+            <ItemGroup Label="Content">
+                <TextureContent Include="..\Content\Textures\*.png">
+                    <Link>Content\Textures\%(Filename)%(Extension)</Link>
+                </TextureContent>
+                <ShaderContent Include="..\Content\Shaders\*.slang">
+                    <Link>Content\Shaders\%(Filename)%(Extension)</Link>
+                </ShaderContent>
+            </ItemGroup>
+
+        Supported item types:
+            TextureContent       source image files
+            ShaderContent        Slang shader sources
+            SoundContent         sound sources
+            MusicContent         music sources
+            DataContent          raw data files           (copied as-is)
+
+        Other item types (texture atlases or sound banks, say) come from
+        pipelines that extend this one, through BuildContentDependsOn.
+
+        TextureContent metadata:
+            Compression          (optional, default Lossless)  Lossless or
+                                                      Lossy: whether the codec keeps every pixel's
+                                                      color within a small, bounded distance of the
+                                                      source, or only looks right.
+            LosslessQuality      (optional, default 10)  1..10, for Lossless items
+                                                      only: 10 is exact, lower lets colors change a
+                                                      little where that saves bytes.  The codec rounds
+                                                      toward the source, never further from it than
+                                                      asked for.
+            LossyQuality         (optional, default 8)  1..10, for Lossy items only;
+                                                      each platform's command template maps it to the
+                                                      codec's native scale.
+                                 Setting one quality on an item of the other
+                                 compression is an error.
+            PremultiplyAlpha     (optional, default true)  Whether to premultiply
+                                                      the colour channels by alpha at build time, the
+                                                      convention for textures drawn with premultiplied
+                                                      alpha blending.  Set it to false for textures
+                                                      whose channels hold data rather than colour, such
+                                                      as the distance fields in an MSDF / MTSDF font
+                                                      atlas; the channels are then stored exactly as in
+                                                      the source.  The runtime texture loaders upload
+                                                      the stored values unchanged either way.  Recorded
+                                                      in the content manifest as PremultipliedAlpha.
+
+        MusicContent metadata:
+            LossyQuality         (optional, default 5)  Normalised 1..10 scale.
+                                                      Music is always lossy, so there is no Compression
+                                                      metadata.  The default is lower than the 8 used
+                                                      for textures and sound because music is usually
+                                                      the largest content class and is streamed rather
+                                                      than held in memory, so extra bitrate costs more
+                                                      download than it buys audibly.
+    -->
+
+    <!-- ──────────────── Visual Studio integration ──────────────── -->
+
+    <ItemGroup>
+        <AvailableItemName Include="TextureContent" />
+        <AvailableItemName Include="ShaderContent" />
+        <AvailableItemName Include="SoundContent" />
+        <AvailableItemName Include="MusicContent" />
+        <AvailableItemName Include="DataContent" />
+        <!--
+            Context=Project is required so the modern Common Project System (CPS)
+            loads the ItemType / ContentType / FileExtension definitions into the
+            project tree and shows these items in Solution Explorer.  Without it,
+            the schema is treated as file-level metadata only and CPS filters
+            the unknown item types out of the tree.  This mirrors the registration
+            pattern used by Microsoft.Managed.DesignTime.targets.
+        -->
+        <PropertyPageSchema Include="$(MSBuildThisFileDirectory)ContentPipeline.ProjectItemsSchema.xaml">
+            <Context>Project</Context>
+        </PropertyPageSchema>
+        <!-- Lets Visual Studio extensions apply to the project, such as one that gives the Content folder its icon -->
+        <ProjectCapability Include="DotGame" />
+        <!--
+            Per-item-type property rules for the Properties window.
+
+            These MUST be separate files from the ProjectSchemaDefinitions container
+            above and MUST use Context="File;BrowseObject".  A <Rule> nested inside a
+            <ProjectSchemaDefinitions> element registered with Context=Project is
+            parsed for its item-type/content-type definitions only, so its properties
+            never appear in the Properties window — which is exactly how the
+            Compression / Quality fields went missing.  "File" supplies the pane for a
+            single selected file and "BrowseObject" for multi-selection; every rule
+            Visual Studio itself ships (None.xaml, Content.xaml, ...) follows this
+            one-rule-per-file, File;BrowseObject shape.
+        -->
+        <PropertyPageSchema Include="$(MSBuildThisFileDirectory)ContentPipeline.TextureContent.BrowseObject.xaml;
+                                                                  $(MSBuildThisFileDirectory)ContentPipeline.ShaderContent.BrowseObject.xaml;
+                                                                  $(MSBuildThisFileDirectory)ContentPipeline.MusicContent.BrowseObject.xaml;
+                                                                  $(MSBuildThisFileDirectory)ContentPipeline.SoundContent.BrowseObject.xaml;
+                                                                  $(MSBuildThisFileDirectory)ContentPipeline.DataContent.BrowseObject.xaml">
+            <Context>File;BrowseObject</Context>
+        </PropertyPageSchema>
+    </ItemGroup>
+
+    <!-- ─────────────── Static web assets integration ────────────── -->
+
+    <!--
+        When the project uses a web SDK (Blazor, WASM, etc.) that supports
+        static web assets, hook content registration into the SDK's
+        resolution pipeline so processed assets are served during
+        development and included in publish output automatically.
+
+        The PropertyGroup is unconditional because the SDK .targets files
+        that define ResolveStaticWebAssetsInputsDependsOn are imported after
+        this file.  Our value is simply appended and preserved.  The actual
+        target is guarded by a runtime Condition so it only executes when
+        the SDK tasks assembly is present.
+    -->
+    <PropertyGroup>
+        <ResolveStaticWebAssetsInputsDependsOn>
+            $(ResolveStaticWebAssetsInputsDependsOn);
+            _ResolveContentPipelineStaticWebAssets;
+        </ResolveStaticWebAssetsInputsDependsOn>
+    </PropertyGroup>
+
+    <!-- ───────────────────────── Directories ───────────────────────── -->
+
+    <!--
+        ContentOutputDir MUST NOT be nested inside ContentIntermediateDir.
+
+        Consuming projects routinely set Link metadata such as
+        "Content\Backgrounds\foo.png" on content items, so the per-item
+        OutputRelativeDir computed by _AddIndexMetadata begins with
+        "Content\".  The texture / shader / sound / atlas targets pass
+        "$(ContentIntermediateDir)%(OutputRelativeDir)" to their helper
+        scripts as the intermediate sidecar directory (.premul.pam,
+        .premul.png, .src.pam, .spv, *.inputs.txt, *.encode.cmd, etc.).
+
+        If ContentOutputDir lives under ContentIntermediateDir (e.g. the
+        historical default "$(ContentIntermediateDir)content\"), then on
+        Windows' case-insensitive filesystem
+        "$(ContentIntermediateDir)Content\Backgrounds\" resolves to the
+        same physical directory as "$(ContentOutputDir)Backgrounds\".
+        Every intermediate sidecar then lands inside the output tree and
+        gets enumerated by _BuildContentFingerprints, fingerprinted, and
+        published as a static web asset (wwwroot/Backgrounds,
+        wwwroot/Effects, wwwroot/Sprites, etc.).
+
+        Rooting the output directory as a SIBLING of the intermediate
+        directory eliminates the case-alias regardless of the Link prefix
+        used by consuming projects.
+    -->
+    <PropertyGroup>
+        <ContentIntermediateDir Condition="'$(ContentIntermediateDir)' == ''">$(BaseIntermediateOutputPath)ContentPipeline\Intermediate\</ContentIntermediateDir>
+        <ContentOutputDir Condition="'$(ContentOutputDir)' == ''">$(BaseIntermediateOutputPath)ContentPipeline\Output\</ContentOutputDir>
+        <!-- Written by _WriteSoundProcessorStamp; an input to BuildSound so a
+                  change to the sound encoder arguments re-encodes existing outputs. -->
+        <_SoundProcessorCommandStampFile>$(ContentIntermediateDir)sound-processor-command.stamp</_SoundProcessorCommandStampFile>
+        <_ShaderProcessorCommandStampFile>$(ContentIntermediateDir)shader-processor-command.stamp</_ShaderProcessorCommandStampFile>
+    </PropertyGroup>
+
+    <!--
+        ContentCacheDir – optional content-addressed build cache.
+
+        When set, deterministic content encodes (textures, shaders, sound, music, and
+        the composite atlas / sound bank builds) are cached by source hash + an
+        auto-derived encoder-parameters hash.  Later builds copy the cached
+        artifact instead of re-running the external encoders, which turns
+        clean / CI / first builds into cheap file copies.
+
+        Defaults to ".dotgame\contentcache\" under the repository root, discovered by
+        _ResolveContentCacheRoot (see below): the nearest ancestor directory
+        holding a solution file, else the nearest holding a .git / .gitignore.
+        Every project built from that repository therefore shares one cache
+        directory — the parameters hash, not the platform, keys each entry, so
+        platforms that encode identically pool their entries.
+
+        The root is deliberately NOT derived from $(SolutionDir) alone.  That
+        property is only set when MSBuild is driven by a solution, so a direct
+        `dotnet build|publish project.csproj` silently resolved it to empty and
+        disabled the cache — the same content then re-encoded from scratch on
+        every such build, and never populated entries for solution builds
+        either.  Discovery is anchored on the project directory instead, so
+        both invocation styles land on the same cache.
+
+        Set ContentCacheDir explicitly to relocate the cache, or set
+        $(ContentCacheEnabled) to false to disable it entirely.
+    -->
+    <PropertyGroup>
+        <ContentCacheEnabled Condition="'$(ContentCacheEnabled)' == ''">true</ContentCacheEnabled>
+
+        <!-- Advice about the art, which builds as it always has: never a reason for a build to fail -->
+        <MSBuildWarningsNotAsErrors>$(MSBuildWarningsNotAsErrors);IMG0001</MSBuildWarningsNotAsErrors>
+    </PropertyGroup>
+
+    <!--
+        ContentCacheLockTimeoutMilliseconds – how long a builder waits to acquire
+        the cross-process encode lock for a single cache entry before giving up
+        and encoding independently.
+
+        Under a multi-process (-m) build several platform projects can reach the
+        same source asset at the same time.  To stop them all missing the (still
+        empty) cache and redundantly launching the external encoder, the first
+        builder takes a per-key lock (a DeleteOnClose lock file beside the cache
+        entry) while it encodes; the others block, then serve the freshly written
+        entry instead of re-encoding.  This timeout is purely a safety valve: if
+        the lock holder crashes or an encode genuinely runs longer than this, the
+        waiter degrades to an independent encode so a stuck peer can never
+        deadlock the build.  Set it high enough to cover the slowest single-asset
+        encode (music).
+    -->
+    <PropertyGroup>
+        <ContentCacheLockTimeoutMilliseconds Condition="'$(ContentCacheLockTimeoutMilliseconds)' == ''">300000</ContentCacheLockTimeoutMilliseconds>
+    </PropertyGroup>
+
+    <!-- ──────────────────────── External tools ─────────────────────── -->
+
+    <Import Project="ExternalTools.props" Condition="'$(_ExternalToolsImported)' != 'true'" />
+
+    <!-- ═════════════════════════════ Tasks ═════════════════════════ -->
+
+    <!-- Compiled from the files in tasks\, each of which documents its task; see ContentPipeline.Tasks.targets -->
+    <Import Project="ContentPipeline.Tasks.targets" />
+
+    <UsingTask TaskName="_AddIndexMetadata" AssemblyFile="$(FrameworkContentPipelineTasksAssembly)" />
+    <UsingTask TaskName="_EncodeContentItems" AssemblyFile="$(FrameworkContentPipelineTasksAssembly)" />
+    <UsingTask TaskName="_WriteSettingsStamps" AssemblyFile="$(FrameworkContentPipelineTasksAssembly)" />
+    <UsingTask TaskName="_PruneContentOutputs" AssemblyFile="$(FrameworkContentPipelineTasksAssembly)" />
+    <UsingTask TaskName="_ResolveProcessorCommand" AssemblyFile="$(FrameworkContentPipelineTasksAssembly)" />
+    <UsingTask TaskName="_TryRestoreFromContentCache" AssemblyFile="$(FrameworkContentPipelineTasksAssembly)" />
+    <UsingTask TaskName="_SaveToContentCache" AssemblyFile="$(FrameworkContentPipelineTasksAssembly)" />
+    <UsingTask TaskName="_TryRestoreFromContentGroupCache" AssemblyFile="$(FrameworkContentPipelineTasksAssembly)" />
+    <UsingTask TaskName="_SaveToContentGroupCache" AssemblyFile="$(FrameworkContentPipelineTasksAssembly)" />
+    <UsingTask TaskName="_ResolveContentCacheRoot" AssemblyFile="$(FrameworkContentPipelineTasksAssembly)" />
+    <UsingTask TaskName="_ProbeMediaDurations" AssemblyFile="$(FrameworkContentPipelineTasksAssembly)" />
+    <UsingTask TaskName="_GenerateContentManifest" AssemblyFile="$(FrameworkContentPipelineTasksAssembly)" />
+
+    <!-- ═══════════════════════════ Targets ═════════════════════════ -->
+
+    <!--
+        _ValidateContentPipeline – normalises relative paths to absolute so
+        targets work regardless of where the Import directive appears in the
+        consuming project file.
+    -->
+    <Target Name="_ValidateContentPipeline" DependsOnTargets="_BuildContentPipelineTasks">
+        <PropertyGroup>
+            <ContentIntermediateDir>$([MSBuild]::EnsureTrailingSlash($([System.IO.Path]::GetFullPath($([System.IO.Path]::Combine('$(MSBuildProjectDirectory)', '$(ContentIntermediateDir)'))))))</ContentIntermediateDir>
+            <ContentOutputDir>$([MSBuild]::EnsureTrailingSlash($([System.IO.Path]::GetFullPath($([System.IO.Path]::Combine('$(MSBuildProjectDirectory)', '$(ContentOutputDir)'))))))</ContentOutputDir>
+        </PropertyGroup>
+        <!--
+            Discover the cache root when the consumer has not pinned one.  This
+            runs in a target rather than at evaluation time because the walk-up
+            needs real filesystem probing; $(ContentCacheEnabled) is the
+            documented off switch (a property assignment here would override a
+            global -p:ContentCacheDir= anyway, so an empty value cannot serve as
+            one).
+        -->
+        <_ResolveContentCacheRoot Condition="'$(ContentCacheDir)' == '' and '$(ContentCacheEnabled)' == 'true'"
+                                                            StartDirectory="$(MSBuildProjectDirectory)"
+                                                            SolutionDirectory="$(SolutionDir)">
+            <Output TaskParameter="CacheRoot" PropertyName="_ContentCacheRoot" />
+        </_ResolveContentCacheRoot>
+        <PropertyGroup Condition="'$(_ContentCacheRoot)' != ''">
+            <_ContentCacheIgnoreFolder>$([MSBuild]::EnsureTrailingSlash('$(_ContentCacheRoot)')).dotgame\</_ContentCacheIgnoreFolder>
+            <ContentCacheDir>$(_ContentCacheIgnoreFolder)contentcache\</ContentCacheDir>
+        </PropertyGroup>
+        <PropertyGroup>
+            <ContentCacheDir Condition="'$(ContentCacheEnabled)' != 'true'"></ContentCacheDir>
+            <ContentCacheDir Condition="'$(ContentCacheDir)' != ''">$([MSBuild]::EnsureTrailingSlash($([System.IO.Path]::GetFullPath($([System.IO.Path]::Combine('$(MSBuildProjectDirectory)', '$(ContentCacheDir)'))))))</ContentCacheDir>
+        </PropertyGroup>
+    </Target>
+
+    <!--
+        PruneContentCache / PurgeContentCache – maintain the project's content
+        cache ($(ContentCacheDir)), which is shared by every project in the
+        repository.  Never run by a build; run them from the game project:
+
+            dotnet build -t:PruneContentCache -tl:off
+                    Report the cache size and how much of it has gone unused.
+            dotnet build -t:PruneContentCache -tl:off -p:ContentCacheUnusedDays=90
+                    Remove entries no build has used for 90 days (add
+                    -p:ContentCacheWhatIf=true to only list them).
+            dotnet build -t:PurgeContentCache -tl:off
+                    Delete the whole cache.
+
+        Pruning runs the cache-prune command of the content pipeline build tool.
+        -tl:off is needed because the terminal logger hides all messages.
+    -->
+    <Target Name="PruneContentCache"
+                    DependsOnTargets="_ValidateContentPipeline;_ResolveContentPipelineBuildTool">
+        <Message Condition="'$(ContentCacheDir)' == ''"
+                          Text="The content cache is disabled (ContentCacheEnabled is false); nothing to prune."
+                          Importance="high" />
+        <PropertyGroup Condition="'$(ContentCacheDir)' != ''">
+            <!-- No trailing separator: a quoted path ending in a backslash escapes its closing quote on Windows. -->
+            <_PruneContentCacheArguments>--cache-dir &quot;$(ContentCacheDir.TrimEnd('\').TrimEnd('/'))&quot;</_PruneContentCacheArguments>
+            <_PruneContentCacheArguments Condition="'$(ContentCacheUnusedDays)' != ''">$(_PruneContentCacheArguments) --unused-days $(ContentCacheUnusedDays)</_PruneContentCacheArguments>
+            <_PruneContentCacheArguments Condition="'$(ContentCacheWhatIf)' == 'true'">$(_PruneContentCacheArguments) --what-if</_PruneContentCacheArguments>
+        </PropertyGroup>
+        <!-- High importance so the report is shown by the terminal logger at the default verbosity. -->
+        <Exec Condition="'$(ContentCacheDir)' != ''"
+                    Command="$(ContentPipelineBuildCommand) cache-prune $(_PruneContentCacheArguments)"
+                    StandardOutputImportance="high" />
+    </Target>
+
+    <Target Name="PurgeContentCache"
+                    DependsOnTargets="_ValidateContentPipeline">
+        <Message Condition="'$(ContentCacheDir)' == ''"
+                          Text="The content cache is disabled (ContentCacheEnabled is false); nothing to purge."
+                          Importance="high" />
+        <RemoveDir Condition="'$(ContentCacheDir)' != '' and Exists('$(ContentCacheDir)')"
+                              Directories="$(ContentCacheDir)" />
+        <Message Condition="'$(ContentCacheDir)' != ''"
+                          Text="Purged the content cache '$(ContentCacheDir)'."
+                          Importance="high" />
+    </Target>
+
+    <!--
+        _PrepareContentItems – adds Index/Total metadata to content items so
+        target-batched build targets can display [m/n] progress counters.
+    -->
+    <Target Name="_PrepareContentItems" DependsOnTargets="_BuildContentPipelineTasks;_ValidateContentPipeline">
+        <_AddIndexMetadata InputItems="@(TextureContent)" Condition="'@(TextureContent)' != ''">
+            <Output TaskParameter="OutputItems" ItemName="_IndexedTextureContent" />
+        </_AddIndexMetadata>
+        <ItemGroup Condition="'@(TextureContent)' != ''">
+            <TextureContent Remove="@(TextureContent)" />
+            <TextureContent Include="@(_IndexedTextureContent)" />
+        </ItemGroup>
+
+        <!--
+            Route each TextureContent item through the lossless, lossy or GPU
+            compressed framework processor based on its Compression and
+            GpuCompression metadata, and LosslessQuality: below 10, a lossless item
+            goes through TextureContentNearLosslessProcessorCommand, the lossless
+            encoder allowed to change colors a little.  The item's quality (its
+            LosslessQuality or LossyQuality, 1-10) resolves to _Quality, which each
+            platform's command templates map to the codec's native scale via the
+            {Quality} token in _ResolveProcessorCommand.
+
+            GpuCompression="true" (opt in; default false) stores the item in a
+            format the platform's GPU samples compressed, for its memory: ASTC on
+            Android and iOS.  GPU formats are lossy, so the item is too (an
+            explicit Compression="Lossless" is an error).  Platforms without a
+            GPU compressed format (TextureContentGpuProcessorCommand empty) use
+            their lossy processor.  GPU formats are larger to download than lossy
+            WebP, which is why it isn't what Lossy means.
+        -->
+        <ItemGroup Condition="'@(TextureContent)' != ''">
+            <TextureContent>
+                <GpuCompression Condition="'%(TextureContent.GpuCompression)' == ''">false</GpuCompression>
+            </TextureContent>
+            <!-- Separate updates: each sees the values the one before set -->
+            <TextureContent>
+                <Compression Condition="'%(TextureContent.Compression)' == '' and '%(TextureContent.GpuCompression)' == 'true'">Lossy</Compression>
+            </TextureContent>
+            <TextureContent>
+                <Compression Condition="'%(TextureContent.Compression)' == ''">Lossless</Compression>
+                <PremultiplyAlpha Condition="'%(TextureContent.PremultiplyAlpha)' == ''">true</PremultiplyAlpha>
+            </TextureContent>
+            <!-- Each compression's quality, before the defaults fill them in -->
+            <_TextureContentMisplacedQuality Include="@(TextureContent)" Condition="('%(TextureContent.Compression)' == 'Lossless' and '%(TextureContent.LossyQuality)' != '') or ('%(TextureContent.Compression)' == 'Lossy' and '%(TextureContent.LosslessQuality)' != '')" />
+            <TextureContent>
+                <LosslessQuality Condition="'%(TextureContent.Compression)' == 'Lossless' and '%(TextureContent.LosslessQuality)' == ''">10</LosslessQuality>
+                <LossyQuality Condition="'%(TextureContent.Compression)' == 'Lossy' and '%(TextureContent.LossyQuality)' == ''">8</LossyQuality>
+            </TextureContent>
+            <TextureContent Condition="'%(TextureContent.Compression)' == 'Lossless'">
+                <_Quality>%(TextureContent.LosslessQuality)</_Quality>
+            </TextureContent>
+            <TextureContent Condition="'%(TextureContent.Compression)' == 'Lossy'">
+                <_Quality>%(TextureContent.LossyQuality)</_Quality>
+            </TextureContent>
+            <_TextureContentInvalid Include="@(TextureContent)" Condition="'%(TextureContent.Compression)' != 'Lossless' and '%(TextureContent.Compression)' != 'Lossy'" />
+            <_TextureContentInvalidQuality Include="@(TextureContent)" Condition="'%(TextureContent.Compression)' == 'Lossless' and !$([System.Text.RegularExpressions.Regex]::IsMatch('%(TextureContent.LosslessQuality)', '^([1-9]|10)$'))" />
+            <_TextureContentInvalidPremultiply Include="@(TextureContent)" Condition="'%(TextureContent.PremultiplyAlpha)' != 'true' and '%(TextureContent.PremultiplyAlpha)' != 'false'" />
+            <_TextureContentInvalidGpu Include="@(TextureContent)" Condition="'%(TextureContent.GpuCompression)' != 'true' and '%(TextureContent.GpuCompression)' != 'false'" />
+            <_TextureContentLosslessGpu Include="@(TextureContent)" Condition="'%(TextureContent.GpuCompression)' == 'true' and '%(TextureContent.Compression)' != 'Lossy'" />
+        </ItemGroup>
+        <Error Condition="'@(_TextureContentInvalid)' != ''"
+                      Text="TextureContent item '%(_TextureContentInvalid.Identity)' has invalid Compression='%(_TextureContentInvalid.Compression)'.  Expected 'Lossless' or 'Lossy'." />
+        <Error Condition="'@(_TextureContentMisplacedQuality)' != ''"
+                      Text="TextureContent item '%(_TextureContentMisplacedQuality.Identity)' is Compression='%(_TextureContentMisplacedQuality.Compression)' and sets the other compression's quality: Lossless items take LosslessQuality, Lossy items LossyQuality." />
+        <Error Condition="'@(_TextureContentInvalidQuality)' != ''"
+                      Text="TextureContent item '%(_TextureContentInvalidQuality.Identity)' has invalid LosslessQuality='%(_TextureContentInvalidQuality.LosslessQuality)'.  Expected 1 to 10." />
+        <Error Condition="'@(_TextureContentInvalidPremultiply)' != ''"
+                      Text="TextureContent item '%(_TextureContentInvalidPremultiply.Identity)' has invalid PremultiplyAlpha='%(_TextureContentInvalidPremultiply.PremultiplyAlpha)'.  Expected 'true' or 'false'." />
+        <Error Condition="'@(_TextureContentInvalidGpu)' != ''"
+                      Text="TextureContent item '%(_TextureContentInvalidGpu.Identity)' has invalid GpuCompression='%(_TextureContentInvalidGpu.GpuCompression)'.  Expected 'true' or 'false'." />
+        <Error Condition="'@(_TextureContentLosslessGpu)' != ''"
+                      Text="TextureContent item '%(_TextureContentLosslessGpu.Identity)' has GpuCompression='true' and Compression='%(_TextureContentLosslessGpu.Compression)'.  GPU compressed formats are lossy: remove Compression, or set it to Lossy." />
+        <ItemGroup Condition="'@(TextureContent)' != ''">
+            <TextureContent>
+                <_ProcessorCommand Condition="'%(TextureContent.Compression)' == 'Lossless' and '%(TextureContent.LosslessQuality)' == '10'">$(TextureContentLosslessProcessorCommand)</_ProcessorCommand>
+                <_ProcessorCommand Condition="'%(TextureContent.Compression)' == 'Lossless' and '%(TextureContent.LosslessQuality)' != '10'">$(TextureContentNearLosslessProcessorCommand)</_ProcessorCommand>
+                <_ProcessorCommand Condition="'%(TextureContent.Compression)' == 'Lossy' and ('%(TextureContent.GpuCompression)' != 'true' or '$(TextureContentGpuProcessorCommand)' == '')">$(TextureContentLossyProcessorCommand)</_ProcessorCommand>
+                <_ProcessorCommand Condition="'%(TextureContent.Compression)' == 'Lossy' and '%(TextureContent.GpuCompression)' == 'true' and '$(TextureContentGpuProcessorCommand)' != ''">$(TextureContentGpuProcessorCommand)</_ProcessorCommand>
+                <_OutputExtension Condition="'%(TextureContent.Compression)' == 'Lossless' and '%(TextureContent.LosslessQuality)' == '10'">$(TextureContentLosslessProcessorOutputExtension)</_OutputExtension>
+                <_OutputExtension Condition="'%(TextureContent.Compression)' == 'Lossless' and '%(TextureContent.LosslessQuality)' != '10'">$(TextureContentNearLosslessProcessorOutputExtension)</_OutputExtension>
+                <_OutputExtension Condition="'%(TextureContent.Compression)' == 'Lossy' and ('%(TextureContent.GpuCompression)' != 'true' or '$(TextureContentGpuProcessorCommand)' == '')">$(TextureContentLossyProcessorOutputExtension)</_OutputExtension>
+                <_OutputExtension Condition="'%(TextureContent.Compression)' == 'Lossy' and '%(TextureContent.GpuCompression)' == 'true' and '$(TextureContentGpuProcessorCommand)' != ''">$(TextureContentGpuProcessorOutputExtension)</_OutputExtension>
+                <_ProcessorDeps Condition="'%(TextureContent.Compression)' == 'Lossless' and '%(TextureContent.LosslessQuality)' == '10'">$(TextureContentLosslessProcessorDeps)</_ProcessorDeps>
+                <_ProcessorDeps Condition="'%(TextureContent.Compression)' == 'Lossless' and '%(TextureContent.LosslessQuality)' != '10'">$(TextureContentNearLosslessProcessorDeps)</_ProcessorDeps>
+                <_ProcessorDeps Condition="'%(TextureContent.Compression)' == 'Lossy' and ('%(TextureContent.GpuCompression)' != 'true' or '$(TextureContentGpuProcessorCommand)' == '')">$(TextureContentLossyProcessorDeps)</_ProcessorDeps>
+                <_ProcessorDeps Condition="'%(TextureContent.Compression)' == 'Lossy' and '%(TextureContent.GpuCompression)' == 'true' and '$(TextureContentGpuProcessorCommand)' != ''">$(TextureContentGpuProcessorDeps)</_ProcessorDeps>
+                <!-- Normalized to lower case: MSBuild compares case-insensitively,
+                          but the value is passed on to the encoder and the manifest. -->
+                <_PremultiplyAlpha Condition="'%(TextureContent.PremultiplyAlpha)' == 'true'">true</_PremultiplyAlpha>
+                <_PremultiplyAlpha Condition="'%(TextureContent.PremultiplyAlpha)' == 'false'">false</_PremultiplyAlpha>
+                <_SettingsStampFile>$(ContentIntermediateDir)%(TextureContent.OutputRelativeDir)%(TextureContent.OutputName).texture.stamp</_SettingsStampFile>
+            </TextureContent>
+        </ItemGroup>
+
+        <_AddIndexMetadata InputItems="@(ShaderContent)" Condition="'@(ShaderContent)' != ''">
+            <Output TaskParameter="OutputItems" ItemName="_IndexedShaderContent" />
+        </_AddIndexMetadata>
+        <ItemGroup Condition="'@(ShaderContent)' != ''">
+            <ShaderContent Remove="@(ShaderContent)" />
+            <ShaderContent Include="@(_IndexedShaderContent)" />
+        </ItemGroup>
+        <_AddIndexMetadata InputItems="@(SoundContent)" Condition="'@(SoundContent)' != ''">
+            <Output TaskParameter="OutputItems" ItemName="_IndexedSoundContent" />
+        </_AddIndexMetadata>
+        <ItemGroup Condition="'@(SoundContent)' != ''">
+            <SoundContent Remove="@(SoundContent)" />
+            <SoundContent Include="@(_IndexedSoundContent)" />
+            <_SoundContentCompressed Include="@(SoundContent)" Condition="'%(SoundContent.Compression)' == 'Lossy'" />
+            <!--
+                LosslessFormat: FLAC (SoundContentFlacProcessorCommand) unless an item says WAV
+                (SoundContentWavProcessorCommand); Default or none is FLAC. FLAC is 45 to 85% of WAV's
+                compressed size and a quarter of its size in an APK, which stores audio uncompressed. On
+                the web, sounds load after the first frame and the browser decodes them off the main
+                thread, so they're ready sooner. Elsewhere they load before the first frame, where decoding
+                a 111 s bank cost a Pixel 3a 47 ms more than WAV cold, its smaller read paying for most of
+                it, and an iPhone 12 mini 175 ms through AVAudioFile (2026-11-12): a game's usual bank,
+                20 to 35 s, a fraction of that.
+            -->
+            <SoundContent>
+                <LosslessFormat Condition="'%(SoundContent.LosslessFormat)' == '' or '%(SoundContent.LosslessFormat)' == 'Default'">FLAC</LosslessFormat>
+            </SoundContent>
+            <SoundContent>
+                <_OutputExtension Condition="'%(SoundContent.LosslessFormat)' == 'FLAC'">$(SoundContentFlacProcessorOutputExtension)</_OutputExtension>
+                <_OutputExtension Condition="'%(SoundContent.LosslessFormat)' != 'FLAC'">$(SoundContentWavProcessorOutputExtension)</_OutputExtension>
+                <_LosslessCommand Condition="'%(SoundContent.LosslessFormat)' == 'FLAC'">$(SoundContentFlacProcessorCommand)</_LosslessCommand>
+                <_LosslessCommand Condition="'%(SoundContent.LosslessFormat)' != 'FLAC'">$(SoundContentWavProcessorCommand)</_LosslessCommand>
+            </SoundContent>
+            <_SoundContentBadFormat Include="@(SoundContent)" Condition="'%(SoundContent.LosslessFormat)' != 'FLAC' and '%(SoundContent.LosslessFormat)' != 'WAV'" />
+        </ItemGroup>
+        <Error Condition="'@(_SoundContentBadFormat)' != ''"
+                      Code="SND0002"
+                      Text="SoundContent item '%(_SoundContentBadFormat.Identity)' has LosslessFormat='%(_SoundContentBadFormat.LosslessFormat)': it can be Default, FLAC or WAV." />
+        <Error Condition="'@(_SoundContentCompressed)' != ''"
+                      Text="SoundContent item '%(_SoundContentCompressed.Identity)' asks for Compression='Lossy', but a standalone sound is always stored lossless, for playing with no delay.  Use SoundBankContent or MusicContent for lossy audio." />
+        <_AddIndexMetadata InputItems="@(MusicContent)" Condition="'@(MusicContent)' != ''">
+            <Output TaskParameter="OutputItems" ItemName="_IndexedMusicContent" />
+        </_AddIndexMetadata>
+        <ItemGroup Condition="'@(MusicContent)' != ''">
+            <MusicContent Remove="@(MusicContent)" />
+            <MusicContent Include="@(_IndexedMusicContent)" />
+            <MusicContent>
+                <_SettingsStampFile>$(ContentIntermediateDir)%(MusicContent.OutputRelativeDir)%(MusicContent.OutputName).music.stamp</_SettingsStampFile>
+            </MusicContent>
+            <!--
+                LossyFormat="Opus": the track is Opus on a platform whose default music format is another
+                (AAC on iOS: MusicContentOpusProcessorCommand). Elsewhere Opus is the default.
+            -->
+            <MusicContent>
+                <_Opus Condition="'%(MusicContent.LossyFormat)' == 'Opus' and '$(MusicContentOpusProcessorCommand)' != ''">true</_Opus>
+            </MusicContent>
+            <MusicContent>
+                <_ProcessorCommand Condition="'%(MusicContent._Opus)' == 'true'">$(MusicContentOpusProcessorCommand)</_ProcessorCommand>
+                <_ProcessorCommand Condition="'%(MusicContent._Opus)' != 'true'">$(MusicContentProcessorCommand)</_ProcessorCommand>
+                <_OutputExtension Condition="'%(MusicContent._Opus)' == 'true'">$(MusicContentOpusProcessorOutputExtension)</_OutputExtension>
+                <_OutputExtension Condition="'%(MusicContent._Opus)' != 'true'">$(MusicContentProcessorOutputExtension)</_OutputExtension>
+            </MusicContent>
+            <_MusicContentBadLossyFormat Include="@(MusicContent)" Condition="'%(MusicContent.LossyFormat)' != '' and '%(MusicContent.LossyFormat)' != 'Default' and '%(MusicContent.LossyFormat)' != 'Opus'" />
+        </ItemGroup>
+        <Error Condition="'@(_MusicContentBadLossyFormat)' != ''"
+                      Code="SND0003"
+                      Text="MusicContent item '%(_MusicContentBadLossyFormat.Identity)' has LossyFormat='%(_MusicContentBadLossyFormat.LossyFormat)': it can be Opus, or Default (or left out) for the platform's own." />
+
+        <!-- The encoders named by a path, ContentExtraToolPaths' too: an upgrade re-encodes, and the cache key has their contents -->
+        <ItemGroup>
+            <_ContentToolFile Include="$(AstcEncExe);$(SlangCExe);$(SpirvCrossExe);$(Spirv2DxilExe);$(ContentExtraToolPaths.Replace('&quot;', ''))" />
+            <_ContentToolFile Remove="@(_ContentToolFile)" Condition="!$([System.IO.Path]::IsPathRooted('%(Identity)')) or !Exists('%(Identity)')" />
+        </ItemGroup>
+
+        <!--
+            Music is always lossy, so it takes LossyQuality but no Compression.
+            The default stays at 5 (Vorbis q5, ~160 kbps) rather than tracking
+            the 8 used for textures and sound: music is streamed rather than
+            decoded into memory and is typically the largest content class, so
+            the extra bitrate costs far more download than it buys audibly.
+            Raise it per item where a particular track warrants it.
+        -->
+        <ItemGroup Condition="'@(MusicContent)' != ''">
+            <MusicContent>
+                <LossyQuality Condition="'%(MusicContent.LossyQuality)' == ''">5</LossyQuality>
+            </MusicContent>
+        </ItemGroup>
+        <!--
+            Music duration / sample-rate / channel probing runs AFTER encoding
+            (see the _ProbeMusicOutput target) so the baked manifest metadata
+            describes the actual encoded `.ogg` rather than the source, which
+            the encoder may resample or re-channel.
+        -->
+        <_AddIndexMetadata InputItems="@(DataContent)" Condition="'@(DataContent)' != ''">
+            <Output TaskParameter="OutputItems" ItemName="_IndexedDataContent" />
+        </_AddIndexMetadata>
+        <ItemGroup Condition="'@(DataContent)' != ''">
+            <DataContent Remove="@(DataContent)" />
+            <DataContent Include="@(_IndexedDataContent)" />
+        </ItemGroup>
+
+        <!--
+            Record the file extensions of DataContent items.  Where a web project
+            turns precompression on, these are handed to the static web assets
+            SDK as extra compression include patterns rather than compressed
+            here; see _ConfigureContentPipelineCompression.
+        -->
+        <ItemGroup>
+            <_DataContentExtension Include="@(DataContent->'%(Extension)'->Distinct())" />
+            <_DataContentExtension Remove="@(_DataContentExtension)" Condition="'%(Identity)' == ''" />
+        </ItemGroup>
+
+        </Target>
+
+    <!--
+        BuildContent – orchestration target.
+        In web projects the static web assets pipeline pulls this in via
+        _ResolveContentPipelineStaticWebAssets.  BeforeTargets="BeforeBuild"
+        serves as a fallback for non-web projects.
+
+        The BuildContentDependsOn property is exposed so optional pipeline
+        extensions (such as texture-atlas or sound-bank processors) can
+        append their own targets.
+
+        The dependency list is emptied during Visual Studio design-time /
+        IntelliSense builds ('$(DesignTimeBuild)' == 'true').  Those builds
+        run CoreCompile (which pulls BuildContent in via the *ToCompile
+        targets), and the content processors here shell out to external
+        tools (astcenc / slangc via the build tool).  Running them under a
+        design-time build spawns those processes constantly and, if one
+        stalls, deadlocks the VS build system so unrelated operations such
+        as Clean appear to hang.  Content is (re)built by real builds only.
+        Design-time builds skip the content manifest too (its entries need the
+        prepared items; see BuildContentManifest) and compile the one the last
+        real build wrote; they keep the fingerprints, which are read from the
+        content output rather than the items.
+
+        Each content type's _Build<Type>Message target checks every item at
+        once, and the per-item Build<Type> target after it runs only when that
+        found something out of date (_<Type>OutOfDate), so a build with nothing
+        to do checks one target per type instead of one per item (a few hundred
+        for a typical game).  Run without its message target, a per-item target
+        checks its items itself.
+    -->
+    <PropertyGroup Condition="'$(DesignTimeBuild)' != 'true'">
+        <BuildContentDependsOn>
+            _PrepareContentItems;
+            _ResolveFrameworkContentPipelineBuildTool;
+            _WriteTextureSettingsStamps;_BuildTexturesMessage;BuildTextures;
+            _WriteShaderProcessorStamp;_BuildShadersMessage;BuildShaders;
+            _WriteSoundProcessorStamp;_BuildSoundMessage;BuildSound;
+            _WriteMusicSettingsStamps;_BuildMusicMessage;BuildMusic;_ProbeMusicOutput;
+            _BuildDataMessage;BuildData
+        </BuildContentDependsOn>
+    </PropertyGroup>
+    <Target Name="BuildContent"
+                    BeforeTargets="BeforeBuild"
+                    DependsOnTargets="$(BuildContentDependsOn);_PruneStaleContentOutputs" />
+
+    <!-- ═══════════════════════════ Launch screen ═══════════════════════════ -->
+
+    <!--
+        The LaunchScreen item: the game's launch screen, described once and made into each
+        platform's native form (docs/architecture/launch-screen.md). One item:
+
+            <LaunchScreen Include="Splash\logo.png"
+                                        Background="#5ba7dd"
+                                        LogoSize="160"
+                                        Branding="Splash\publisher.png"
+                                        BrandingWidth="120" />
+
+            Include         The logo, drawn centered; its longer side is LogoSize dp (default 160),
+                                            and it has to fit the 192 dp circle Android 12's splash screen shows.
+            Background      The launch color, which the game's first frame also clears to.
+            Branding        Optional: a mark drawn near the bottom, in a 200 x 80 dp area.
+            BrandingWidth   Optional: the branding's width in dp (default: as large as fits the area).
+
+        BuildLaunchScreen runs the build tool's launch-screen command for the platform
+        ($(LaunchScreenPlatform), set by each platform's targets). Android's resources and iOS's
+        storyboard go to $(LaunchScreenResourceDir), which the platform's targets register; the
+        desktop and web images ($(LaunchScreenImageExtension)) go to the content output under
+        LaunchScreen\, as content. It also generates $(LaunchScreenCsFile), which registers the
+        launch screen with the framework (DotGame.Framework.LaunchScreen).
+    -->
+    <PropertyGroup>
+        <LaunchScreenResourceDir Condition="'$(LaunchScreenResourceDir)' == ''">$(ContentIntermediateDir)LaunchScreen\</LaunchScreenResourceDir>
+        <LaunchScreenCsFile Condition="'$(LaunchScreenCsFile)' == ''">$(ContentIntermediateDir)LaunchScreen.g.cs</LaunchScreenCsFile>
+        <!-- Where the desktop and web images go in the content output, beside the other content -->
+        <_LaunchScreenContentRelativeDir>$(ContentLinkBasePath)</_LaunchScreenContentRelativeDir>
+        <_LaunchScreenContentRelativeDir Condition="'$(_LaunchScreenContentRelativeDir)' == ''">Content\</_LaunchScreenContentRelativeDir>
+        <_LaunchScreenContentRelativeDir>$(_LaunchScreenContentRelativeDir)LaunchScreen\</_LaunchScreenContentRelativeDir>
+        <_LaunchScreenStampFile>$(ContentIntermediateDir)launch-screen.stamp</_LaunchScreenStampFile>
+        <LaunchScreenPlatformArguments Condition="'$(_LaunchScreenUsesIntermediateDir)' == 'true'">$(LaunchScreenPlatformArguments) --intermediate-dir &quot;$(ContentIntermediateDir)LaunchScreen&quot;</LaunchScreenPlatformArguments>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(DesignTimeBuild)' != 'true'">
+        <BuildContentDependsOn>$(BuildContentDependsOn);BuildLaunchScreen</BuildContentDependsOn>
+    </PropertyGroup>
+
+    <Target Name="_PrepareLaunchScreen"
+                    DependsOnTargets="_ValidateContentPipeline"
+                    Condition="'@(LaunchScreen)' != ''">
+        <ItemGroup>
+            <_LaunchScreenItem Include="@(LaunchScreen)" />
+        </ItemGroup>
+        <Error Condition="'@(_LaunchScreenItem->Count())' != '1'"
+                      Text="There's more than one LaunchScreen item (@(LaunchScreen)): a game has one launch screen." />
+        <Error Condition="!Exists('%(_LaunchScreenItem.FullPath)')"
+                      Text="The LaunchScreen logo '%(_LaunchScreenItem.Identity)' wasn't found." />
+        <Error Condition="'%(_LaunchScreenItem.Background)' == ''"
+                      Text="The LaunchScreen item needs a Background color, as in Background=&quot;#5ba7dd&quot;." />
+        <Error Condition="'%(_LaunchScreenItem.Branding)' != '' and !Exists('%(_LaunchScreenItem.Branding)')"
+                      Text="The LaunchScreen branding '%(_LaunchScreenItem.Branding)' wasn't found." />
+        <Warning Condition="'$(LaunchScreenPlatform)' == ''"
+                          Text="This platform's content pipeline doesn't make launch screens (its targets don't set LaunchScreenPlatform), so the LaunchScreen item is skipped." />
+        <PropertyGroup>
+            <_LaunchScreenLogo>@(_LaunchScreenItem->'%(FullPath)')</_LaunchScreenLogo>
+            <_LaunchScreenBrandingPath>@(_LaunchScreenItem->'%(Branding)')</_LaunchScreenBrandingPath>
+            <_LaunchScreenBranding Condition="'$(_LaunchScreenBrandingPath)' != ''">$([System.IO.Path]::GetFullPath($([System.IO.Path]::Combine('$(MSBuildProjectDirectory)', '$(_LaunchScreenBrandingPath)'))))</_LaunchScreenBranding>
+            <_LaunchScreenLogoSize>@(_LaunchScreenItem->'%(LogoSize)')</_LaunchScreenLogoSize>
+            <_LaunchScreenBrandingWidth>@(_LaunchScreenItem->'%(BrandingWidth)')</_LaunchScreenBrandingWidth>
+            <_LaunchScreenDescription>--logo &quot;$(_LaunchScreenLogo)&quot; --background &quot;@(_LaunchScreenItem->'%(Background)')&quot;</_LaunchScreenDescription>
+            <_LaunchScreenDescription Condition="'$(_LaunchScreenLogoSize)' != ''">$(_LaunchScreenDescription) --logo-size $(_LaunchScreenLogoSize)</_LaunchScreenDescription>
+            <_LaunchScreenDescription Condition="'$(_LaunchScreenBranding)' != ''">$(_LaunchScreenDescription) --branding &quot;$(_LaunchScreenBranding)&quot;</_LaunchScreenDescription>
+            <_LaunchScreenDescription Condition="'$(_LaunchScreenBrandingWidth)' != ''">$(_LaunchScreenDescription) --branding-width $(_LaunchScreenBrandingWidth)</_LaunchScreenDescription>
+
+            <!-- Android and iOS make resources; desktop and the web, content -->
+            <_LaunchScreenOutputDir>$(LaunchScreenResourceDir)</_LaunchScreenOutputDir>
+            <_LaunchScreenOutputDir Condition="'$(LaunchScreenImageExtension)' != ''">$(ContentOutputDir)$(_LaunchScreenContentRelativeDir)</_LaunchScreenOutputDir>
+        </PropertyGroup>
+        <MakeDir Directories="$(ContentIntermediateDir)" />
+        <!-- The settings, as an input to BuildLaunchScreen: changing the item remakes it -->
+        <WriteLinesToFile File="$(_LaunchScreenStampFile)"
+                                            Lines="$(LaunchScreenPlatform) $(_LaunchScreenDescription) $(LaunchScreenPlatformArguments)"
+                                            Overwrite="true"
+                                            WriteOnlyWhenDifferent="true" />
+    </Target>
+
+    <Target Name="_BuildLaunchScreenMessage" Condition="'@(LaunchScreen)' != ''">
+        <Message Text="Building the launch screen..." Importance="high" />
+    </Target>
+
+    <Target Name="BuildLaunchScreen"
+                    DependsOnTargets="_PrepareLaunchScreen;_ResolveContentPipelineBuildTool;_BuildLaunchScreenMessage"
+                    Inputs="$(_LaunchScreenLogo);$(_LaunchScreenBranding);$(_LaunchScreenStampFile);$(_ContentPipelineBuildToolInputs)"
+                    Outputs="$(LaunchScreenCsFile)"
+                    Condition="'@(LaunchScreen)' != '' and '$(LaunchScreenPlatform)' != ''">
+        <!-- Remade whole, so nothing from an earlier description (a removed branding) is left -->
+        <RemoveDir Directories="$(_LaunchScreenOutputDir)" />
+        <Exec Command="$(ContentPipelineBuildCommand) launch-screen --platform $(LaunchScreenPlatform) $(_LaunchScreenDescription) $(LaunchScreenPlatformArguments) --output-dir &quot;$(_LaunchScreenOutputDir.TrimEnd('\').TrimEnd('/'))&quot; --cs-output &quot;$(LaunchScreenCsFile)&quot;" />
+        <Message Text="LaunchScreen: $(LaunchScreenPlatform) -> $(_LaunchScreenOutputDir)" Importance="high" />
+    </Target>
+
+    <!-- The registration, compiled into the game -->
+    <Target Name="_AddLaunchScreenToCompile"
+                    BeforeTargets="CoreCompile"
+                    DependsOnTargets="BuildContent"
+                    Condition="'@(LaunchScreen)' != ''">
+        <ItemGroup Condition="Exists('$(LaunchScreenCsFile)')">
+            <Compile Include="$(LaunchScreenCsFile)" />
+            <FileWrites Include="$(LaunchScreenCsFile)" />
+        </ItemGroup>
+    </Target>
+
+    <!--
+        _PruneStaleContentOutputs – runs last in BuildContent, so everything that
+        reads the output directory afterwards (the copy to bin\, static web
+        asset registration, Android assets, the iOS bundle, the manifest) sees
+        only the files the current content items produce; see
+        _PruneContentOutputs.
+
+        Each pipeline declares its items' outputs exactly, relative to
+        ContentOutputDir, as ContentOutputFile (one file), _ContentOutputSuffixGroup
+        (a base path and its Suffixes), or _ContentOutputPageGroup (a base path
+        and the PageExtension of its numbered pages).  Pipeline extensions
+        declare theirs in a target listed in
+        $(ContentOutputStemsDependsOn), which runs first.  A pipeline that can't
+        tell an item's outputs adds a _ContentOutputUnknown item, and nothing is
+        pruned that build.  Skipped in design-time builds, which don't build
+        content.
+    -->
+    <Target Name="_PruneStaleContentOutputs"
+                    DependsOnTargets="_BuildContentPipelineTasks;$(ContentOutputStemsDependsOn)"
+                    Condition="'$(DesignTimeBuild)' != 'true' and Exists('$(ContentOutputDir)')">
+        <ItemGroup>
+            <ContentOutputFile Include="@(TextureContent->'%(OutputRelativeDir)%(OutputName)%(_OutputExtension)')" />
+            <ContentOutputFile Include="@(SoundContent->'%(OutputRelativeDir)%(OutputName)%(_OutputExtension)')" />
+            <ContentOutputFile Include="@(MusicContent->'%(OutputRelativeDir)%(OutputName)%(_OutputExtension)')" />
+            <ContentOutputFile Include="@(DataContent->'%(OutputRelativeDir)%(OutputName)%(Extension)')" />
+            <ContentOutputFile Include="$(_LaunchScreenContentRelativeDir)logo$(LaunchScreenImageExtension)"
+                                                    Condition="'@(LaunchScreen)' != '' and '$(LaunchScreenImageExtension)' != ''" />
+            <ContentOutputFile Include="$(_LaunchScreenContentRelativeDir)branding$(LaunchScreenImageExtension)"
+                                                    Condition="'@(LaunchScreen)' != '' and '$(LaunchScreenImageExtension)' != '' and '$(_LaunchScreenBranding)' != ''" />
+            <!-- The outputs this platform's shader processor writes: its primary extension and each sub-key's -->
+            <_ContentOutputSuffixGroup Include="@(ShaderContent->'%(OutputRelativeDir)%(OutputName)')"
+                                                                  Suffixes="$(ShaderContentProcessorOutputExtension);$(ShaderContentManifestSubKeys)" />
+        </ItemGroup>
+        <PropertyGroup>
+            <_ContentOutputListFile>$(ContentIntermediateDir)content-outputs.list</_ContentOutputListFile>
+        </PropertyGroup>
+        <Message Condition="'@(_ContentOutputUnknown)' != ''"
+                          Importance="high"
+                          Text="Not pruning content outputs: the outputs of '@(_ContentOutputUnknown)' aren't known." />
+        <_PruneContentOutputs Condition="'@(_ContentOutputUnknown)' == ''"
+                                                    OutputDir="$(ContentOutputDir)"
+                                                    ListFile="$(_ContentOutputListFile)"
+                                                    Files="@(ContentOutputFile)"
+                                                    SuffixGroups="@(_ContentOutputSuffixGroup)"
+                                                    PageGroups="@(_ContentOutputPageGroup)" />
+    </Target>
+
+    <!--
+        Builds the content pipeline build tool (ContentPipeline.BuildTool.props)
+        when there is framework content for it to process.
+    -->
+    <Target Name="_ResolveFrameworkContentPipelineBuildTool"
+                    DependsOnTargets="_ResolveContentPipelineBuildTool"
+                    Condition="'@(TextureContent)@(ShaderContent)@(SoundContent)@(MusicContent)@(LaunchScreen)' != ''" />
+
+    <!--
+        Records each texture's resolved encoder settings (command template,
+        quality, PremultiplyAlpha) in a per-item stamp file that is an input
+        to BuildTextures, so changing an item's metadata re-encodes it rather
+        than leaving a stale output that is newer than its source.  See
+        _WriteSoundProcessorStamp.  WriteOnlyWhenDifferent keeps the stamp's
+        timestamp stable when nothing has changed.
+    -->
+    <Target Name="_WriteTextureSettingsStamps"
+                    Condition="'@(TextureContent)' != ''">
+        <ItemGroup>
+            <TextureContent>
+                <_Settings>%(TextureContent._ProcessorCommand);q=%(TextureContent._Quality);premultiply=%(TextureContent._PremultiplyAlpha)</_Settings>
+            </TextureContent>
+        </ItemGroup>
+        <MakeDir Directories="$(ContentIntermediateDir)%(TextureContent.OutputRelativeDir)" />
+        <_WriteSettingsStamps Items="@(TextureContent)"
+                                                    StampFileMetadata="_SettingsStampFile"
+                                                    SettingsMetadata="_Settings"
+                                                    SummaryFile="$(ContentIntermediateDir)texture-settings.summary" />
+    </Target>
+
+    <Target Name="_BuildTexturesMessage"
+                    Inputs="@(TextureContent);%(TextureContent._ProcessorDeps);$(_ContentPipelineBuildToolInputs);@(TextureContent->'%(_SettingsStampFile)');@(_ContentToolFile)"
+                    Outputs="@(TextureContent -> '$(ContentOutputDir)%(OutputRelativeDir)%(OutputName)%(_OutputExtension)')"
+                    Condition="'@(TextureContent)' != ''">
+        <Message Text="Processing texture assets..." Importance="high" />
+        <!-- Value is set even when this target is skipped as up to date, ValueSetByTask only when it runs -->
+        <CreateProperty Value="true">
+            <Output TaskParameter="Value" PropertyName="_TexturesChecked" />
+            <Output TaskParameter="ValueSetByTask" PropertyName="_TexturesOutOfDate" />
+        </CreateProperty>
+    </Target>
+
+    <!--
+        Textures: Uses target batching (%(TextureContent.Identity) in Inputs)
+        so each texture gets its own independent incremental check.
+    -->
+    <Target Name="BuildTextures"
+                    DependsOnTargets="_BuildContentPipelineTasks"
+                    Condition="'@(TextureContent)' != '' and ('$(_TexturesOutOfDate)' == 'true' or '$(_TexturesChecked)' != 'true')">
+        <ItemGroup>
+            <TextureContent>
+                <_OutputFile>$(ContentOutputDir)%(TextureContent.OutputRelativeDir)%(TextureContent.OutputName)%(TextureContent._OutputExtension)</_OutputFile>
+                <_StagedFile>$(ContentIntermediateDir)staged\%(TextureContent.OutputRelativeDir)%(TextureContent.OutputName)%(TextureContent._OutputExtension)</_StagedFile>
+                <_IntermediateDir>$(ContentIntermediateDir)%(TextureContent.OutputRelativeDir)</_IntermediateDir>
+                <_CommandTemplate>%(TextureContent._ProcessorCommand)</_CommandTemplate>
+                <_ToolPaths>$(ContentExtraToolPaths);$(_ContentPipelineBuildToolPaths)</_ToolPaths>
+                <_Deps>%(TextureContent._ProcessorDeps)</_Deps>
+                <_StampFile>%(TextureContent._SettingsStampFile)</_StampFile>
+                <_ExtraKey>version=$(ContentPipelineTextureVersion);q=%(TextureContent._Quality);premultiply=%(TextureContent._PremultiplyAlpha)</_ExtraKey>
+                <_Description>[%(TextureContent.Index)/%(TextureContent.Total)] %(TextureContent.OutputRelativeDir)%(TextureContent.OutputName)%(TextureContent.Extension) -&gt; %(TextureContent.OutputRelativeDir)%(TextureContent.OutputName)%(TextureContent._OutputExtension) [%(TextureContent.Compression), q=%(TextureContent._Quality)]</_Description>
+            </TextureContent>
+        </ItemGroup>
+        <_EncodeContentItems Items="@(TextureContent)"
+                                                  CacheDir="$(ContentCacheDir)"
+                                                  CommonInputs="$(_ContentPipelineBuildToolInputs);@(_ContentToolFile)"
+                                                  WorkingDirectory="$(MSBuildProjectDirectory)"
+                                                  IgnoreFolder="$(_ContentCacheIgnoreFolder)"
+                                                  LockTimeoutMilliseconds="$(ContentCacheLockTimeoutMilliseconds)"
+                                                  MaxParallel="$(ContentBuildParallelism)" />
+    </Target>
+
+    <!--
+        Records the shader command, so a change to it recompiles, and finds the Slang files beside each
+        shader, any of which it may import: a change to one recompiles the shaders beside it. The content
+        cache makes that cheap for the shaders that import nothing. Declare an import from elsewhere as a
+        ShaderDependency item.
+    -->
+    <Target Name="_WriteShaderProcessorStamp"
+                    Condition="'@(ShaderContent)' != ''">
+        <MakeDir Directories="$(ContentIntermediateDir)" />
+        <WriteLinesToFile File="$(_ShaderProcessorCommandStampFile)"
+                                            Lines="$(ShaderContentProcessorCommand)"
+                                            Overwrite="true"
+                                            WriteOnlyWhenDifferent="true" />
+        <ItemGroup>
+            <!-- NOTE: Batched, as a wildcard in an item transform isn't expanded -->
+            <_ShaderImportCandidate Include="%(ShaderContent.RootDir)%(ShaderContent.Directory)*.slang" />
+        </ItemGroup>
+    </Target>
+
+    <Target Name="_BuildShadersMessage"
+                    Inputs="@(ShaderContent);$(ShaderContentProcessorDeps);$(_ContentPipelineBuildToolInputs);$(_ShaderProcessorCommandStampFile);@(_ShaderImportCandidate);@(ShaderDependency);@(_ContentToolFile)"
+                    Outputs="@(ShaderContent -> '$(ContentOutputDir)%(OutputRelativeDir)%(OutputName)$(ShaderContentProcessorOutputExtension)')"
+                    Condition="'@(ShaderContent)' != ''">
+        <Message Text="Processing shader assets..." Importance="high" />
+        <!-- Value is set even when this target is skipped as up to date, ValueSetByTask only when it runs -->
+        <CreateProperty Value="true">
+            <Output TaskParameter="Value" PropertyName="_ShadersChecked" />
+            <Output TaskParameter="ValueSetByTask" PropertyName="_ShadersOutOfDate" />
+        </CreateProperty>
+    </Target>
+
+    <!--
+        Shaders: Uses target batching (%(ShaderContent.Identity) in Inputs)
+        so each shader gets its own independent incremental check.
+        ShaderContentProcessorDeps lists scripts / tools that trigger a full
+        rebuild when changed.
+
+        A shader compiles to several files (one per stage and shader type, for
+        example sunburst.frag.spv, .vert.spv, .frag.msl, ...), so it is cached as
+        a group entry keyed by its one source file; _ShaderContentOutputSuffixes
+        lists every file the shader command can produce.  The outputs of a
+        previous compile are deleted before it's restored or compiled, so a stage
+        the shader no longer has can't stay. Its files are compiled to a staged
+        folder and moved into place once the compile has succeeded, so a failed or
+        killed compile leaves nothing the next build could take for finished.
+
+        The key covers only the shader's own source, so a shader that imports or
+        includes other files is not cached: a change to a dependency would
+        otherwise be served stale.
+    -->
+    <PropertyGroup>
+        <!-- NOTE: A platform with another shader format adds its suffixes, or they're neither cached nor cleared -->
+        <_ShaderContentOutputSuffixes>.frag.spv;.vert.spv;.frag.msl;.vert.msl;.frag.dxil;.vert.dxil;.glsl;$(ShaderContentExtraOutputSuffixes)</_ShaderContentOutputSuffixes>
+    </PropertyGroup>
+
+    <Target Name="BuildShaders"
+                    DependsOnTargets="_BuildContentPipelineTasks"
+                    Inputs="%(ShaderContent.Identity);$(ShaderContentProcessorDeps);$(_ContentPipelineBuildToolInputs);$(_ShaderProcessorCommandStampFile);@(_ShaderImportCandidate);@(ShaderDependency);@(_ContentToolFile)"
+                    Outputs="$(ContentOutputDir)%(ShaderContent.OutputRelativeDir)%(ShaderContent.OutputName)$(ShaderContentProcessorOutputExtension)"
+                    Condition="'@(ShaderContent)' != '' and ('$(_ShadersOutOfDate)' == 'true' or '$(_ShadersChecked)' != 'true')">
+        <MakeDir Directories="$(ContentOutputDir)%(ShaderContent.OutputRelativeDir);$(ContentIntermediateDir)%(ShaderContent.OutputRelativeDir)" />
+        <PropertyGroup>
+            <_ContentBuildStart>$([System.Environment]::TickCount)</_ContentBuildStart>
+            <_ShaderOutputBase>$(ContentOutputDir)%(ShaderContent.OutputRelativeDir)%(ShaderContent.OutputName)</_ShaderOutputBase>
+            <_ShaderStagedBase>$(ContentIntermediateDir)staged\%(ShaderContent.OutputRelativeDir)%(ShaderContent.OutputName)</_ShaderStagedBase>
+            <_ShaderHasDependencies>$([System.Text.RegularExpressions.Regex]::IsMatch($([System.IO.File]::ReadAllText('%(ShaderContent.FullPath)')), '(?m)^\s*(import|__include|#include)\b'))</_ShaderHasDependencies>
+            <_ShaderCacheDir>$(ContentCacheDir)</_ShaderCacheDir>
+            <_ShaderCacheDir Condition="'$(_ShaderHasDependencies)' == 'True'"></_ShaderCacheDir>
+        </PropertyGroup>
+        <_ResolveProcessorCommand
+            Template="$(ShaderContentProcessorCommand)"
+            InputFile="%(ShaderContent.Identity)"
+            OutputFile="$(_ShaderStagedBase)$(ShaderContentProcessorOutputExtension)"
+            IntermediateDir="$(ContentIntermediateDir)%(ShaderContent.OutputRelativeDir)">
+            <Output TaskParameter="ResolvedCommand" PropertyName="_ProcessorCommand" />
+        </_ResolveProcessorCommand>
+        <!-- A stage the shader no longer has mustn't be left by an earlier compile, on a cache hit too -->
+        <ItemGroup>
+            <_StaleShaderOutput Include="$(_ShaderContentOutputSuffixes)" />
+            <_StaleShaderOutput Update="@(_StaleShaderOutput)" Path="$(_ShaderOutputBase)%(Identity)" />
+            <_StaleShaderFile Include="@(_StaleShaderOutput->'%(Path)')" Exclude="$(_ShaderOutputBase)$(ShaderContentProcessorOutputExtension)" />
+        </ItemGroup>
+        <Delete Files="@(_StaleShaderFile)" />
+        <ItemGroup>
+            <_StaleShaderOutput Remove="@(_StaleShaderOutput)" />
+            <_StaleShaderFile Remove="@(_StaleShaderFile)" />
+        </ItemGroup>
+        <!--
+            A shader precompiled into a package (a library's built-in shader): Precompiled names a folder
+            with its outputs for every platform, named as the shader command names them. This platform's
+            (its main output and its manifest sub-keys' files) are copied, and nothing is compiled, so
+            the shader needs no shader tools. Set on every batch, since properties outlive one.
+        -->
+        <PropertyGroup>
+            <_ShaderPrecompiledBase></_ShaderPrecompiledBase>
+            <_ShaderPrecompiledBase Condition="'%(ShaderContent.Precompiled)' != ''">$([MSBuild]::EnsureTrailingSlash('%(ShaderContent.Precompiled)'))%(ShaderContent.Filename)</_ShaderPrecompiledBase>
+            <_ShaderCacheRestored>false</_ShaderCacheRestored>
+        </PropertyGroup>
+        <Error Condition="'$(_ShaderPrecompiledBase)' != '' and !Exists('$(_ShaderPrecompiledBase)$(ShaderContentProcessorOutputExtension)')"
+                      Text="The precompiled shader $(_ShaderPrecompiledBase)$(ShaderContentProcessorOutputExtension) is missing, so %(ShaderContent.Identity) can't be built for this platform." />
+        <ItemGroup Condition="'$(_ShaderPrecompiledBase)' != ''">
+            <_PrecompiledShaderSuffix Include="$(_ShaderContentOutputSuffixes)" />
+            <_PrecompiledShaderSuffix Remove="@(_PrecompiledShaderSuffix)"
+                                                                Condition="'%(_PrecompiledShaderSuffix.Identity)' != '$(ShaderContentProcessorOutputExtension)' and !$([System.String]::Copy(';$(ShaderContentManifestSubKeys);').Contains('=%(_PrecompiledShaderSuffix.Identity);'))" />
+            <_PrecompiledShaderFile Include="@(_PrecompiledShaderSuffix->'$(_ShaderPrecompiledBase)%(Identity)')" Final="$(_ShaderOutputBase)%(Identity)" />
+            <_PrecompiledShaderFile Remove="@(_PrecompiledShaderFile)" Condition="!Exists('%(FullPath)')" />
+        </ItemGroup>
+        <Copy Condition="'$(_ShaderPrecompiledBase)' != ''" SourceFiles="@(_PrecompiledShaderFile)" DestinationFiles="@(_PrecompiledShaderFile->'%(Final)')" />
+        <PropertyGroup Condition="'$(_ShaderPrecompiledBase)' != ''">
+            <_ShaderCacheRestored>true</_ShaderCacheRestored>
+        </PropertyGroup>
+        <ItemGroup>
+            <_PrecompiledShaderSuffix Remove="@(_PrecompiledShaderSuffix)" />
+            <_PrecompiledShaderFile Remove="@(_PrecompiledShaderFile)" />
+        </ItemGroup>
+        <_TryRestoreFromContentGroupCache
+            Condition="'$(_ShaderPrecompiledBase)' == ''"
+            SourceFiles="%(ShaderContent.FullPath)"
+            OutputBaseFile="$(_ShaderOutputBase)"
+            CacheDir="$(_ShaderCacheDir)"
+            CommandTemplate="$(ShaderContentProcessorCommand)"
+            ToolPaths="$(SlangCPath);$(SpirvCrossPath);$(Spirv2DxilPath);$(_ContentPipelineBuildToolPaths)"
+            ProcessorDeps="$(ShaderContentProcessorDeps)"
+            ExtraKey="version=$(ContentPipelineShaderVersion);ext=$(ShaderContentProcessorOutputExtension)"
+            LockTimeoutMilliseconds="$(ContentCacheLockTimeoutMilliseconds)">
+            <Output TaskParameter="Restored" PropertyName="_ShaderCacheRestored" />
+            <Output TaskParameter="CachePath" PropertyName="_ShaderCachePath" />
+        </_TryRestoreFromContentGroupCache>
+        <Message Condition="'$(_ShaderCacheRestored)' != 'true'" Text="    $(_ProcessorCommand)" Importance="low" />
+        <ItemGroup>
+            <_ShaderOutputSuffix Include="$(_ShaderContentOutputSuffixes)" />
+        </ItemGroup>
+        <Delete Condition="'$(_ShaderCacheRestored)' != 'true'" Files="@(_ShaderOutputSuffix->'$(_ShaderStagedBase)%(Identity)')" />
+        <MakeDir Condition="'$(_ShaderCacheRestored)' != 'true'" Directories="$([System.IO.Path]::GetDirectoryName('$(_ShaderStagedBase)x'))" />
+        <Exec Condition="'$(_ShaderCacheRestored)' != 'true'" Command="$(_ProcessorCommand)" />
+        <ItemGroup Condition="'$(_ShaderCacheRestored)' != 'true'">
+            <_StagedShaderOutput Include="@(_ShaderOutputSuffix->'$(_ShaderStagedBase)%(Identity)')" Final="$(_ShaderOutputBase)%(Identity)" />
+            <_StagedShaderOutput Remove="@(_StagedShaderOutput)" Condition="!Exists('%(FullPath)')" />
+        </ItemGroup>
+        <!-- Outputs of the last compile a stage the shader no longer has mustn't stay -->
+        <Delete Condition="'$(_ShaderCacheRestored)' != 'true'" Files="@(_ShaderOutputSuffix->'$(_ShaderOutputBase)%(Identity)')" />
+        <Move Condition="'$(_ShaderCacheRestored)' != 'true'" SourceFiles="@(_StagedShaderOutput)" DestinationFiles="@(_StagedShaderOutput->'%(Final)')" />
+        <ItemGroup>
+            <_StagedShaderOutput Remove="@(_StagedShaderOutput)" />
+            <_ShaderOutputSuffix Remove="@(_ShaderOutputSuffix)" />
+        </ItemGroup>
+        <_SaveToContentGroupCache IgnoreFolder="$(_ContentCacheIgnoreFolder)" Condition="'$(_ShaderCacheRestored)' != 'true'"
+            OutputBaseFile="$(_ShaderOutputBase)"
+            Suffixes="$(_ShaderContentOutputSuffixes)"
+            CachePath="$(_ShaderCachePath)"
+            CacheDir="$(_ShaderCacheDir)" />
+        <PropertyGroup>
+            <_ContentBuildElapsed>$([MSBuild]::Divide($([MSBuild]::Subtract($([System.Environment]::TickCount), $(_ContentBuildStart))), 1000.0).ToString('0.#'))</_ContentBuildElapsed>
+        </PropertyGroup>
+        <Message Text="[%(ShaderContent.Index)/%(ShaderContent.Total)] %(ShaderContent.OutputRelativeDir)%(ShaderContent.OutputName)%(ShaderContent.Extension) -> %(ShaderContent.OutputRelativeDir)%(ShaderContent.OutputName)$(ShaderContentProcessorOutputExtension) [$(_ContentBuildElapsed)s]" Importance="high" />
+    </Target>
+
+    <Target Name="_BuildSoundMessage"
+                    Inputs="@(SoundContent);$(SoundContentLosslessProcessorDeps);$(_ContentPipelineBuildToolInputs);$(_SoundProcessorCommandStampFile);@(_ContentToolFile)"
+                    Outputs="@(SoundContent -> '$(ContentOutputDir)%(OutputRelativeDir)%(OutputName)%(_OutputExtension)')"
+                    Condition="'@(SoundContent)' != ''">
+        <Message Text="Processing sound assets..." Importance="high" />
+        <!-- Value is set even when this target is skipped as up to date, ValueSetByTask only when it runs -->
+        <CreateProperty Value="true">
+            <Output TaskParameter="Value" PropertyName="_SoundChecked" />
+            <Output TaskParameter="ValueSetByTask" PropertyName="_SoundOutOfDate" />
+        </CreateProperty>
+    </Target>
+
+    <!--
+        Records the resolved sound processor command in a stamp file so that a
+        change to the encoder arguments (codec, sample rate, quality) re-triggers
+        BuildSound.
+
+        Without this the incremental check below compares only source timestamps
+        against output timestamps, so re-encoding at a different sample rate would
+        leave every previously built artefact untouched at its old rate: the
+        build would report success while shipping stale audio.  (The content cache
+        already keys on the command template, but the cache is consulted only after
+        the target's own up-to-date check has decided to run at all.)
+
+        WriteOnlyWhenDifferent keeps the stamp's timestamp stable when the command
+        has not changed, so this costs nothing on an ordinary incremental build.
+    -->
+    <Target Name="_WriteSoundProcessorStamp"
+                    Condition="'@(SoundContent)' != ''">
+        <MakeDir Directories="$(ContentIntermediateDir)" />
+        <WriteLinesToFile File="$(_SoundProcessorCommandStampFile)"
+                                            Lines="$(SoundContentFlacProcessorCommand);$(SoundContentWavProcessorCommand)"
+                                            Overwrite="true"
+                                            WriteOnlyWhenDifferent="true" />
+    </Target>
+
+    <!--
+        Sound: Uses target batching for per-file incremental checks.
+        Single-file SoundContent always uses the lossless processor;
+        Compression/LossyQuality metadata is honoured only on SoundBankContent.
+    -->
+    <Target Name="BuildSound"
+                    DependsOnTargets="_BuildContentPipelineTasks"
+                    Condition="'@(SoundContent)' != '' and ('$(_SoundOutOfDate)' == 'true' or '$(_SoundChecked)' != 'true')">
+        <ItemGroup>
+            <SoundContent>
+                <_OutputFile>$(ContentOutputDir)%(SoundContent.OutputRelativeDir)%(SoundContent.OutputName)%(SoundContent._OutputExtension)</_OutputFile>
+                <_StagedFile>$(ContentIntermediateDir)staged\%(SoundContent.OutputRelativeDir)%(SoundContent.OutputName)%(SoundContent._OutputExtension)</_StagedFile>
+                <_IntermediateDir>$(ContentIntermediateDir)%(SoundContent.OutputRelativeDir)</_IntermediateDir>
+                <_CommandTemplate>%(SoundContent._LosslessCommand)</_CommandTemplate>
+                <_ToolPaths>$(ContentExtraToolPaths);$(_ContentPipelineBuildToolPaths)</_ToolPaths>
+                <_Deps>$(SoundContentLosslessProcessorDeps)</_Deps>
+                <_StampFile>$(_SoundProcessorCommandStampFile)</_StampFile>
+                <_ExtraKey>version=$(ContentPipelineSoundVersion)</_ExtraKey>
+                <_Description>[%(SoundContent.Index)/%(SoundContent.Total)] %(SoundContent.OutputRelativeDir)%(SoundContent.OutputName)%(SoundContent.Extension) -&gt; %(SoundContent.OutputRelativeDir)%(SoundContent.OutputName)%(SoundContent._OutputExtension)</_Description>
+            </SoundContent>
+        </ItemGroup>
+        <_EncodeContentItems Items="@(SoundContent)"
+                                                  CacheDir="$(ContentCacheDir)"
+                                                  CommonInputs="$(_ContentPipelineBuildToolInputs);@(_ContentToolFile)"
+                                                  WorkingDirectory="$(MSBuildProjectDirectory)"
+                                                  IgnoreFolder="$(_ContentCacheIgnoreFolder)"
+                                                  LockTimeoutMilliseconds="$(ContentCacheLockTimeoutMilliseconds)"
+                                                  MaxParallel="$(ContentBuildParallelism)" />
+    </Target>
+
+    <!-- Records each track's encoder settings; see _WriteTextureSettingsStamps -->
+    <Target Name="_WriteMusicSettingsStamps"
+                    Condition="'@(MusicContent)' != ''">
+        <ItemGroup>
+            <MusicContent>
+                <_Settings>%(MusicContent._ProcessorCommand);q=%(MusicContent.LossyQuality)</_Settings>
+            </MusicContent>
+        </ItemGroup>
+        <MakeDir Directories="$(ContentIntermediateDir)%(MusicContent.OutputRelativeDir)" />
+        <_WriteSettingsStamps Items="@(MusicContent)"
+                                                    StampFileMetadata="_SettingsStampFile"
+                                                    SettingsMetadata="_Settings"
+                                                    SummaryFile="$(ContentIntermediateDir)music-settings.summary" />
+    </Target>
+
+    <Target Name="_BuildMusicMessage"
+                    Inputs="@(MusicContent);$(MusicContentProcessorDeps);$(_ContentPipelineBuildToolInputs);@(MusicContent->'%(_SettingsStampFile)');@(_ContentToolFile)"
+                    Outputs="@(MusicContent -> '$(ContentOutputDir)%(OutputRelativeDir)%(OutputName)%(_OutputExtension)')"
+                    Condition="'@(MusicContent)' != ''">
+        <Message Text="Processing music assets..." Importance="high" />
+        <!-- Value is set even when this target is skipped as up to date, ValueSetByTask only when it runs -->
+        <CreateProperty Value="true">
+            <Output TaskParameter="Value" PropertyName="_MusicChecked" />
+            <Output TaskParameter="ValueSetByTask" PropertyName="_MusicOutOfDate" />
+        </CreateProperty>
+    </Target>
+
+    <!--
+        Music: Uses target batching for per-file incremental checks.
+    -->
+    <Target Name="BuildMusic"
+                    DependsOnTargets="_BuildContentPipelineTasks"
+                    Condition="'@(MusicContent)' != '' and ('$(_MusicOutOfDate)' == 'true' or '$(_MusicChecked)' != 'true')">
+        <ItemGroup>
+            <MusicContent>
+                <_OutputFile>$(ContentOutputDir)%(MusicContent.OutputRelativeDir)%(MusicContent.OutputName)%(MusicContent._OutputExtension)</_OutputFile>
+                <_StagedFile>$(ContentIntermediateDir)staged\%(MusicContent.OutputRelativeDir)%(MusicContent.OutputName)%(MusicContent._OutputExtension)</_StagedFile>
+                <_IntermediateDir>$(ContentIntermediateDir)%(MusicContent.OutputRelativeDir)</_IntermediateDir>
+                <_CommandTemplate>%(MusicContent._ProcessorCommand)</_CommandTemplate>
+                <_ToolPaths>$(ContentExtraToolPaths);$(_ContentPipelineBuildToolPaths)</_ToolPaths>
+                <_Deps>$(MusicContentProcessorDeps)</_Deps>
+                <_StampFile>%(MusicContent._SettingsStampFile)</_StampFile>
+                <_ExtraKey>version=$(ContentPipelineMusicVersion);q=%(MusicContent.LossyQuality)</_ExtraKey>
+                <_Description>[%(MusicContent.Index)/%(MusicContent.Total)] %(MusicContent.OutputRelativeDir)%(MusicContent.OutputName)%(MusicContent.Extension) -&gt; %(MusicContent.OutputRelativeDir)%(MusicContent.OutputName)%(MusicContent._OutputExtension) [q=%(MusicContent.LossyQuality)]</_Description>
+            </MusicContent>
+        </ItemGroup>
+        <_EncodeContentItems Items="@(MusicContent)"
+                                                  CacheDir="$(ContentCacheDir)"
+                                                  CommonInputs="$(_ContentPipelineBuildToolInputs);@(_ContentToolFile)"
+                                                  WorkingDirectory="$(MSBuildProjectDirectory)"
+                                                  IgnoreFolder="$(_ContentCacheIgnoreFolder)"
+                                                  LockTimeoutMilliseconds="$(ContentCacheLockTimeoutMilliseconds)"
+                                                  MaxParallel="$(ContentBuildParallelism)" />
+    </Target>
+
+    <!--
+        _ProbeMusicOutput – precompute each music track's duration, sample
+        rate, and channel count from the ENCODED output, not the
+        source, and stash them on the MusicContent items so
+        BuildContentManifest can bake them into ContentManifest.g.cs.
+
+        Running after BuildMusic (and before BuildContentManifest) is what
+        guarantees the baked SampleRate/Channels match the artifact the
+        runtime actually decodes.  Probing the source instead would record
+        the source's format, which the encoder may resample (-ar) or (before
+        this fix) upmix (-ac 2); the resulting manifest/artifact mismatch
+        made mono tracks such as pig_unlock play back at the wrong rate on
+        Android, where the decoder is constructed from manifest metadata.
+
+        The task reads the encoded files itself (no ffprobe).  CacheFile
+        memoises the results across builds keyed by the output path +
+        last-write time, so an up-to-date incremental build reads none.  The
+        cache lives under the intermediate directory and is removed by
+        _CleanContent along with everything else.
+    -->
+    <Target Name="_ProbeMusicOutput"
+                    DependsOnTargets="_BuildContentPipelineTasks"
+                    Condition="'@(MusicContent)' != ''">
+        <ItemGroup>
+            <MusicContent>
+                <_ProbeFile>$(ContentOutputDir)%(MusicContent.OutputRelativeDir)%(MusicContent.OutputName)%(MusicContent._OutputExtension)</_ProbeFile>
+            </MusicContent>
+        </ItemGroup>
+        <_ProbeMediaDurations InputItems="@(MusicContent)"
+                                                    CacheFile="$(ContentIntermediateDir)MediaDurations.Music.cache"
+                                                    ProbeFileMetadata="_ProbeFile">
+            <Output TaskParameter="OutputItems" ItemName="_ProbedMusicContent" />
+        </_ProbeMediaDurations>
+        <ItemGroup>
+            <MusicContent Remove="@(MusicContent)" />
+            <MusicContent Include="@(_ProbedMusicContent)" />
+        </ItemGroup>
+    </Target>
+
+    <Target Name="_BuildDataMessage"
+                    Inputs="@(DataContent)"
+                    Outputs="@(DataContent -> '$(ContentOutputDir)%(OutputRelativeDir)%(OutputName)%(Extension)')"
+                    Condition="'@(DataContent)' != ''">
+        <Message Text="Copying data assets..." Importance="high" />
+        <!-- Value is set even when this target is skipped as up to date, ValueSetByTask only when it runs -->
+        <CreateProperty Value="true">
+            <Output TaskParameter="Value" PropertyName="_DataChecked" />
+            <Output TaskParameter="ValueSetByTask" PropertyName="_DataOutOfDate" />
+        </CreateProperty>
+    </Target>
+
+    <!--
+        Data: copy as-is
+        Uses target batching for per-file incremental checks.
+    -->
+    <Target Name="BuildData"
+                    Inputs="%(DataContent.Identity)"
+                    Outputs="$(ContentOutputDir)%(DataContent.OutputRelativeDir)%(DataContent.OutputName)%(DataContent.Extension)"
+                    Condition="'@(DataContent)' != '' and ('$(_DataOutOfDate)' == 'true' or '$(_DataChecked)' != 'true')">
+        <MakeDir Directories="$(ContentOutputDir)%(DataContent.OutputRelativeDir)" />
+        <Copy SourceFiles="%(DataContent.Identity)" DestinationFiles="$(ContentOutputDir)%(DataContent.OutputRelativeDir)%(DataContent.OutputName)%(DataContent.Extension)" />
+        <Message Text="[%(DataContent.Index)/%(DataContent.Total)] %(DataContent.OutputRelativeDir)%(DataContent.OutputName)%(DataContent.Extension) -> %(DataContent.OutputRelativeDir)%(DataContent.OutputName)%(DataContent.Extension)" Importance="high" />
+    </Target>
+
+    <!--
+        _ConfigureContentPipelineCompression – opts processed content into the
+        static web assets SDK's own pre-compression, where a project turns it on
+        with $(CompressionEnabled) (off by default on the web; see
+        ContentPipeline.webgl.targets).
+
+        Pre-compressed sidecars for content are produced by the SDK rather than
+        by this pipeline.  The SDK already walks every static web asset and
+        emits .gz on build and .gz + .br on publish, and pipeline outputs are
+        registered as Computed assets, so they are in scope automatically.  All
+        this target does is reconcile the SDK's format list with the pipeline's:
+
+            * Add the processed shader extension.  Shader outputs are commonly
+                text (e.g. GLSL) and compress well, but the extension is not in the
+                SDK's default include list.
+            * Add the extension of every DataContent item.  Well-known data
+                formats (.txt, .json, .xml, .csv, .dat, ...) are already covered by
+                the SDK defaults; this extends the same treatment to a game's own
+                extensions such as .bin, which a host that doesn't compress them
+                itself would otherwise send as they are.
+
+        Doing it this way replaced a pair of hand-rolled targets that shelled
+        out to pwsh once per file to produce .br only.  Delegating removes that
+        per-file process launch, picks up gzip as well as Brotli, keeps the
+        compressed variants correctly registered as publish-only alternative
+        representations with matching endpoints and integrity hashes, and means
+        already-compressed formats (.webp, .ogg, .flac) are skipped by the
+        SDK's exclude list instead of by pipeline-side bookkeeping.
+
+        Because compression is now wholly the SDK's, the SDK's own switches
+        govern it and the pipeline adds none of its own.  $(CompressionEnabled)
+        turns it off everywhere (content and application payload alike); it
+        gates the import of the SDK's compression targets, so the targets this
+        one hooks cease to exist and this target simply never runs.  See also
+        $(DisableBuildCompression) and $(BuildCompressionFormats) /
+        $(PublishCompressionFormats) for narrower control.
+
+        The patterns are properties consumed by ResolveCompressedAssets, so
+        this runs immediately before the targets that read them.
+    -->
+    <Target Name="_ConfigureContentPipelineCompression"
+                    DependsOnTargets="_PrepareContentItems"
+                    BeforeTargets="ResolveBuildCompressedStaticWebAssetsConfiguration;ResolvePublishCompressedStaticWebAssetsConfiguration"
+                    Condition="'$(StaticWebAssetsSdkBuildTasksAssembly)' != ''">
+        <PropertyGroup>
+            <CompressionIncludePatterns Condition="'@(ShaderContent)' != ''">$(CompressionIncludePatterns);**/*$(ShaderContentProcessorOutputExtension)</CompressionIncludePatterns>
+            <CompressionIncludePatterns Condition="'@(_DataContentExtension)' != ''">$(CompressionIncludePatterns);@(_DataContentExtension->'**/*%(Identity)', ';')</CompressionIncludePatterns>
+            <!--
+                The SDK's default exclude list covers the already-compressed formats
+                that existed when it was written (.webp, .ogg, .mp4, ...) but not the
+                music codecs this pipeline emits.  Compressing them again spends build
+                time and publish size on payloads that cannot shrink: an Opus/FLAC
+                stream is entropy-coded already, so Brotli typically gains well under
+                a percent.  Excluding them explicitly keeps that cost off every build.
+            -->
+            <CompressionExcludePatterns Condition="'@(MusicContent)' != ''">$(CompressionExcludePatterns);**/*$(MusicContentProcessorOutputExtension)</CompressionExcludePatterns>
+            <CompressionExcludePatterns Condition="'@(MusicContent)' != '' and '$(MusicContentOpusProcessorOutputExtension)' != ''">$(CompressionExcludePatterns);**/*$(MusicContentOpusProcessorOutputExtension)</CompressionExcludePatterns>
+        </PropertyGroup>
+    </Target>
+
+    <!--
+        BuildContentManifest – aggregates every processed/copied content
+        item into a logical-key → relative-path map and generates a C#
+        source file (ContentManifest.g.cs) compiled into the assembly.
+
+        Single-output content types (textures, sounds, music, data, raw,
+        and combined-output shaders) register a single primary entry:
+            Key:    <OutputRelativeDir><Filename>            (no extension)
+            Value:  <OutputRelativeDir><Filename><Extension> (with codec ext)
+
+        Multi-output shader pipelines (desktop SDL3, iOS Metal) emit a
+        set of role-tagged companion files (vert/frag in spv/msl/dxil).
+        Those platforms set $(ShaderContentManifestSubKeys) to a semicolon-
+        separated list of `subKey=suffix` pairs; one manifest entry per
+        sub-key is generated with key "<basekey>:<subKey>".
+
+        A [ModuleInitializer] in the generated class constructs a
+        ContentManifest with a stable identity, adds every entry to it,
+        and registers it with `ContentManifest.Register`. Loaders call
+        ContentManifest.ResolveContentPath(key) (optionally with a sub-key)
+        to look up the actual relative path.
+    -->
+    <PropertyGroup>
+        <ContentManifestCsFile Condition="'$(ContentManifestCsFile)' == ''">$(ContentIntermediateDir)ContentManifest.g.cs</ContentManifestCsFile>
+        <!--
+            Manifest keys/values are emitted relative to the content output
+            root (which is $(ContentOutputDir) = "Content/" by default).
+            $(ContentManifestBasePath) is stripped from each entry so the
+            generated map matches asset keys registered at runtime, which
+            do not include the platform's content-root prefix.
+        -->
+        <ContentManifestBasePath Condition="'$(ContentManifestBasePath)' == ''">Content/</ContentManifestBasePath>
+        <ContentManifestIdentity Condition="'$(ContentManifestIdentity)' == ''">$(AssemblyName)</ContentManifestIdentity>
+    </PropertyGroup>
+
+    <!--
+        Not in design-time builds.  They skip the content targets, including
+        _PrepareContentItems and the extensions' preparation, so the items have no
+        OutputRelativeDir and the fonts no FontName: a manifest made from them has
+        keys without their folders ("sunburst" for "Effects/sunburst") and no
+        fonts.  Visual Studio runs a design-time build whenever obj changes, such
+        as after the first build of a clean checkout, and it overwrote the real
+        build's manifest with that one.  The manifest is the real build's alone;
+        a design-time build compiles the one the last real build wrote.
+    -->
+    <Target Name="BuildContentManifest"
+                    DependsOnTargets="_BuildContentPipelineTasks"
+                    AfterTargets="BuildContent"
+                    Condition="'$(DesignTimeBuild)' != 'true'">
+        <ItemGroup>
+            <ContentManifestEntry Include="@(TextureContent -> '%(OutputRelativeDir)%(OutputName)')" Source="%(TextureContent.Identity)"
+                                                          Condition="'@(TextureContent)' != ''">
+                <RelativePath>%(TextureContent.OutputRelativeDir)%(TextureContent.OutputName)%(TextureContent._OutputExtension)</RelativePath>
+                <PremultipliedAlpha>%(TextureContent._PremultiplyAlpha)</PremultipliedAlpha>
+            </ContentManifestEntry>
+            <!--
+                Single-output shader platforms (combined GLSL on android/webgl)
+                leave $(ShaderContentManifestSubKeys) unset; the shader is then
+                registered as a single primary entry. Multi-output platforms
+                (desktop, iOS) skip this and route ShaderContent through the
+                sub-key expansion below instead.
+            -->
+            <ContentManifestEntry Include="@(ShaderContent -> '%(OutputRelativeDir)%(OutputName)')" Source="%(ShaderContent.Identity)"
+                                                          Condition="'@(ShaderContent)' != '' and '$(ShaderContentManifestSubKeys)' == ''">
+                <RelativePath>%(ShaderContent.OutputRelativeDir)%(ShaderContent.OutputName)$(ShaderContentProcessorOutputExtension)</RelativePath>
+            </ContentManifestEntry>
+            <ContentManifestEntry Include="@(SoundContent -> '%(OutputRelativeDir)%(OutputName)')" Source="%(SoundContent.Identity)"
+                                                          Condition="'@(SoundContent)' != ''">
+                <RelativePath>%(SoundContent.OutputRelativeDir)%(SoundContent.OutputName)%(SoundContent._OutputExtension)</RelativePath>
+            </ContentManifestEntry>
+            <ContentManifestEntry Include="@(MusicContent -> '%(OutputRelativeDir)%(OutputName)')" Source="%(MusicContent.Identity)"
+                                                          Condition="'@(MusicContent)' != ''">
+                <RelativePath>%(MusicContent.OutputRelativeDir)%(MusicContent.OutputName)%(MusicContent._OutputExtension)</RelativePath>
+                <DurationSeconds>%(MusicContent._DurationSeconds)</DurationSeconds>
+                <SampleRate>%(MusicContent._SampleRate)</SampleRate>
+                <Channels>%(MusicContent._Channels)</Channels>
+            </ContentManifestEntry>
+            <ContentManifestEntry Include="@(DataContent -> '%(OutputRelativeDir)%(OutputName)%(Extension)')" Source="%(DataContent.Identity)"
+                                                          Condition="'@(DataContent)' != ''">
+                <RelativePath>%(DataContent.OutputRelativeDir)%(DataContent.OutputName)%(DataContent.Extension)</RelativePath>
+            </ContentManifestEntry>
+            <ContentManifestEntry Include="$(_LaunchScreenContentRelativeDir)logo"
+                                                          Condition="'@(LaunchScreen)' != '' and '$(LaunchScreenImageExtension)' != ''">
+                <RelativePath>$(_LaunchScreenContentRelativeDir)logo$(LaunchScreenImageExtension)</RelativePath>
+                <PremultipliedAlpha>true</PremultipliedAlpha>
+            </ContentManifestEntry>
+            <ContentManifestEntry Include="$(_LaunchScreenContentRelativeDir)branding"
+                                                          Condition="'@(LaunchScreen)' != '' and '$(LaunchScreenImageExtension)' != '' and '$(_LaunchScreenBranding)' != ''">
+                <RelativePath>$(_LaunchScreenContentRelativeDir)branding$(LaunchScreenImageExtension)</RelativePath>
+                <PremultipliedAlpha>true</PremultipliedAlpha>
+            </ContentManifestEntry>
+        </ItemGroup>
+        <_GenerateContentManifest
+            Entries="@(ContentManifestEntry)"
+            ShaderEntries="@(ShaderContent)"
+            ShaderSubKeys="$(ShaderContentManifestSubKeys)"
+            OutputCsFile="$(ContentManifestCsFile)"
+            BasePath="$(ContentManifestBasePath)"
+            ManifestIdentity="$(ContentManifestIdentity)"
+            PropertyNames="DurationSeconds;SampleRate;Channels;PremultipliedAlpha;$(ContentManifestProperties)" />
+    </Target>
+
+    <!--
+        Add the generated manifest source to Compile.  Runs after
+        BuildContent (which generates the file) and before CoreCompile
+        pulls in the Compile item set.
+    -->
+    <Target Name="_AddContentManifestToCompile"
+                    BeforeTargets="CoreCompile"
+                    DependsOnTargets="BuildContent">
+        <ItemGroup Condition="Exists('$(ContentManifestCsFile)')">
+            <Compile Include="$(ContentManifestCsFile)" />
+            <FileWrites Include="$(ContentManifestCsFile)" />
+        </ItemGroup>
+    </Target>
+
+    <!-- ═══════════════════════════ Clean ═══════════════════════════ -->
+
+    <!--
+        _CleanContent – remove processed outputs and intermediates.
+
+        Runs after the standard Clean target, so 'dotnet clean' and Rebuild
+        remove processed content along with everything else.  There is no
+        separate content-only clean: the content cache makes rebuilding the
+        content cheap (a rebuild restores the artifacts in-process from
+        $(ContentCacheDir) instead of relaunching the encoders).
+
+        The standard Clean alone is not enough because the pipeline's
+        directories live under $(BaseIntermediateOutputPath), outside the
+        per-configuration obj\ folder, and because staged copies left by
+        earlier builds are not in any clean list (see below).
+
+        Note the cache itself lives outside these directories and is
+        deliberately NOT cleaned; it is regenerable and shared across
+        projects, so deleting it would only cost every project a full
+        re-encode.  Remove it by hand if you genuinely need to.
+    -->
+    <!--
+        NOTE: the condition below must stay in sync with the one on
+        _CopyContentToOutputDirectory: _CleanContent removes exactly what that
+        target stages.  It is repeated inline rather than hoisted into a
+        property because $(StaticWebAssetsSdkBuildTasksAssembly) is set by the
+        web SDK's targets, which are imported AFTER this file; a property
+        computed here at evaluation time would still see it empty and wrongly
+        conclude that web projects stage into $(OutDir).  Target conditions
+        are evaluated at run time, by which point the value is correct.
+
+        Which platforms stage where:
+            * Web SDK projects register content as static web assets; the SDK
+                stages and cleans them.
+            * Android sets $(_ContentPipelineSkipOutputCopy) and registers
+                @(AndroidAsset) instead, so the Android packaging targets place
+                the files in the APK's assets/ folder and clean them.
+            * Everything else is staged into $(OutDir) by the pipeline and
+                so must be cleaned by the pipeline.
+    -->
+    <Target Name="_CleanContent"
+                    AfterTargets="Clean"
+                    DependsOnTargets="_ValidateContentPipeline">
+        <Message Text="Cleaning content for $(MSBuildProjectName) ($(Configuration)|$(TargetFramework))..." Importance="high" />
+        <!--
+            Remove the staged copies under $(OutDir) as well as the obj\ side.
+            Recording the copies in FileWrites (see _CopyContentToOutputDirectory)
+            already lets Clean delete everything the CURRENT build staged, but
+            files left by earlier builds (content that has since been renamed,
+            removed, or re-encoded to a different extension) were never in any
+            clean list and would survive forever.  The directories to remove are
+            taken from the pipeline's own output layout, file by file, so a
+            developer's own file in a folder of the same name stays, and this must
+            run before ContentOutputDir is deleted below.
+        -->
+        <ItemGroup Condition="'$(StaticWebAssetsSdkBuildTasksAssembly)' == '' and '$(_ContentPipelineSkipOutputCopy)' != 'true' and Exists('$(ContentOutputDir)')">
+            <_ContentPipelineStagedOutput Include="$(ContentOutputDir)**\*" />
+        </ItemGroup>
+        <PropertyGroup>
+            <_ContentPipelineStageDir>$([MSBuild]::EnsureTrailingSlash('$(OutDir)'))</_ContentPipelineStageDir>
+        </PropertyGroup>
+        <Delete Condition="'@(_ContentPipelineStagedOutput)' != ''"
+                        Files="@(_ContentPipelineStagedOutput->'$(_ContentPipelineStageDir)%(RecursiveDir)%(Filename)%(Extension)')" />
+        <RemoveDir Directories="$(ContentIntermediateDir)" />
+        <RemoveDir Directories="$(ContentOutputDir)" />
+        <Message Text="Cleaned content for $(MSBuildProjectName)." Importance="high" />
+    </Target>
+
+    <!-- ═══════════════ Copy to output directory ═════════════════ -->
+
+    <!--
+        _CopyContentToOutputDirectory – for non-web projects, copy processed
+        content from the intermediate output directory to the build output
+        directory so the application can find it at runtime.
+    -->
+    <Target Name="_CopyContentToOutputDirectory"
+                    AfterTargets="BuildContent"
+                    BeforeTargets="BeforeBuild"
+                    DependsOnTargets="BuildContent"
+                    Condition="'$(StaticWebAssetsSdkBuildTasksAssembly)' == '' and '$(_ContentPipelineSkipOutputCopy)' != 'true'">
+        <!--
+            Staged into $(OutDir), the directory the build copies the app's own
+            files to, with a trailing slash ensured.  Not $(OutputPath): 'dotnet
+            build -o <dir>' sets it without a trailing slash, so appending to it
+            put the content in a sibling '<dir>Content' folder, next to the app
+            rather than inside it.
+        -->
+        <PropertyGroup>
+            <_ContentPipelineStageDir>$([MSBuild]::EnsureTrailingSlash('$(OutDir)'))</_ContentPipelineStageDir>
+        </PropertyGroup>
+        <ItemGroup>
+            <_ContentPipelineCopyOutput Include="$(ContentOutputDir)**\*.*" />
+        </ItemGroup>
+        <!--
+            CopiedFiles is fed into FileWrites so the copies are recorded in the
+            project's clean file list ($(IntermediateOutputPath)*.FileListAbsolute.txt,
+            written by IncrementalClean).  Clean deletes exactly what that list
+            names, so without this the staged content lingered in bin\ after a
+            'dotnet clean' (_CleanContent only sweeps directories that the current
+        output layout names).  Recording
+            the writes also lets IncrementalClean prune stale files from bin\ when
+            a content item is renamed or removed.
+        -->
+        <Copy Condition="'@(_ContentPipelineCopyOutput)' != ''"
+                    SourceFiles="@(_ContentPipelineCopyOutput)"
+                    DestinationFiles="@(_ContentPipelineCopyOutput -> '$(_ContentPipelineStageDir)%(RecursiveDir)%(Filename)%(Extension)')"
+                    SkipUnchangedFiles="true">
+            <Output TaskParameter="CopiedFiles" ItemName="FileWrites" />
+        </Copy>
+    </Target>
+
+    <!-- ═══════════════ Static web assets registration ═════════════ -->
+
+    <!--
+        _ResolveContentPipelineStaticWebAssets – registers processed content
+        as static web assets so the dev server serves them and publish
+        includes them.  Uses the SDK's DefineStaticWebAssets task, the same
+        mechanism used for scoped CSS and other generated content.
+
+        Only runs when the static web assets SDK is present (web projects).
+        Non-web projects rely on _CopyContentToOutputDirectory above.
+    -->
+    <Target Name="_ResolveContentPipelineStaticWebAssets"
+                    DependsOnTargets="BuildContent"
+                    Condition="'$(StaticWebAssetsSdkBuildTasksAssembly)' != ''">
+
+        <!--
+            Collect processed output files.  Pre-compressed variants are excluded:
+            they are produced by the static web assets SDK from these primary
+            assets (see _ConfigureContentPipelineCompression), which registers
+            them as alternative representations with the correct endpoints and
+            integrity hashes.  The exclusion also skips any .br/.gz left behind
+            in the output directory by an older build, so stale sidecars can
+            never be registered as primary assets in their own right.
+        -->
+        <ItemGroup>
+            <_ContentPipelineOutput Include="$(ContentOutputDir)**\*.*" Exclude="$(ContentOutputDir)**\*.br;$(ContentOutputDir)**\*.gz" />
+        </ItemGroup>
+        <ItemGroup>
+            <_ContentPipelineOutput Update="@(_ContentPipelineOutput)">
+                <RelativePath>%(RecursiveDir)%(Filename)%(Extension)</RelativePath>
+            </_ContentPipelineOutput>
+        </ItemGroup>
+
+        <DefineStaticWebAssets
+            Condition="'@(_ContentPipelineOutput)' != ''"
+            CandidateAssets="@(_ContentPipelineOutput)"
+            SourceType="Computed"
+            SourceId="$(PackageId)"
+            ContentRoot="$(ContentOutputDir)"
+            BasePath="$(StaticWebAssetBasePath)"
+            AssetKind="All"
+            AssetMode="CurrentProject"
+            AssetRole="Primary"
+            AssetMergeSource="$(StaticWebAssetMergeTarget)"
+            FingerprintCandidates="false"
+            CopyToOutputDirectory="Never"
+            CopyToPublishDirectory="PreserveNewest">
+            <Output TaskParameter="Assets" ItemName="StaticWebAsset" />
+            <Output TaskParameter="Assets" ItemName="_ContentPipelineStaticWebAsset" />
+        </DefineStaticWebAssets>
+
+        <DefineStaticWebAssetEndpoints
+            Condition="'@(_ContentPipelineStaticWebAsset)' != ''"
+            CandidateAssets="@(_ContentPipelineStaticWebAsset)"
+            ExistingEndpoints="@(StaticWebAssetEndpoint)"
+            ContentTypeMappings="@(StaticWebAssetContentTypeMapping)">
+            <Output TaskParameter="Endpoints" ItemName="StaticWebAssetEndpoint" />
+        </DefineStaticWebAssetEndpoints>
+
+    </Target>
+
+</Project>

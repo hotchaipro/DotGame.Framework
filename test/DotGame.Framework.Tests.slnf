@@ -1,0 +1,10 @@
+{
+  "solution": {
+    "path": "../DotGame.Framework.slnx",
+    "projects": [
+      "test/DotGame.Analyzers.Tests/DotGame.Analyzers.Tests.csproj",
+      "test/DotGame.Framework.ContentPipeline.Tests/DotGame.Framework.ContentPipeline.Tests.csproj",
+      "test/DotGame.Framework.Tests/DotGame.Framework.Tests.csproj"
+    ]
+  }
+}

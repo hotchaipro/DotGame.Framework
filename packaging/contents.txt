@@ -1,0 +1,85 @@
+# What each of the framework's packages may contain: check.sh fails on any file in a package that no line
+# here allows. A library built on the framework lists its packages in a contents.txt of its own.
+#
+# "[<package id>]" starts a package's lines ("*" in an id matches anything, as in a tool package's
+# build machine), and each line after it is a path inside the package. In a path, "*" matches within
+# one folder, "**" across folders, and "{a,b}" either. "[*]" lines apply to every package. A new file
+# in a package needs a line here, which is the point: nothing reaches nuget.org unlisted. Every package
+# also has its readme and notices: the [*] lines, which a library's check uses too.
+
+[*]
+[Content_Types].xml
+_rels/.rels
+package/services/metadata/core-properties/*.psmdcp
+*.nuspec
+README.md
+THIRD-PARTY-NOTICES.md
+
+[DotGame.Framework]
+lib/net11.0/DotGame.Framework.{dll,xml}
+analyzers/dotnet/cs/DotGame.Analyzers.dll
+build/DotGame.Framework.targets
+build/DotGame.Framework.Switches.targets
+buildTransitive/DotGame.Framework.{props,targets}
+
+[DotGame.Framework.Build]
+pipeline/tool/ContentVersions.props
+pipeline/tool/DotGame.Framework.ContentPipeline.BuildTool.{dll,deps.json,runtimeconfig.json}
+pipeline/tool/DotGame.Imaging.dll
+pipeline/tool/DotGame.AudioCodecs.dll
+buildTransitive/DotGame.Framework.Build.{props,targets}
+buildTransitive/RestoreTools.proj
+pipeline/*.targets
+pipeline/*.props
+pipeline/*.BrowseObject.xaml
+pipeline/ContentPipeline.ProjectItemsSchema.xaml
+pipeline/build/DotGame.Framework.ContentPipeline.targets
+pipeline/native/wasm-legacy-eh.cpp
+pipeline/tasks/DotGame.Framework.ContentPipeline.Tasks.dll
+
+[DotGame.Framework.Build.Tools.osx-*]
+tools/{slangc,spirv-cross,spirv2dxil,astcenc}
+tools/libslang-*.dylib
+
+[DotGame.Framework.Build.Tools.win-*]
+tools/{slangc,spirv-cross,spirv2dxil,astcenc}.exe
+tools/*.dll
+
+[DotGame.Framework.Build.Tools.linux-*]
+tools/{slangc,spirv-cross,spirv2dxil,astcenc}
+tools/*.so*
+
+[DotGame.Framework.Desktop]
+lib/net11.0/DotGame.Framework.Desktop.{dll,xml}
+buildTransitive/DotGame.Framework.Desktop.props
+runtimes/{win-x64,win-arm64}/native/SDL3.dll
+runtimes/{linux-x64,linux-arm64}/native/libSDL3.so
+runtimes/{osx-x64,osx-arm64}/native/libSDL3.dylib
+
+[DotGame.Framework.WebGL]
+lib/net11.0/DotGame.Framework.WebGL.{dll,xml}
+buildTransitive/DotGame.Framework.WebGL.{props,targets}
+web/_dotgame/*.js
+
+[DotGame.Framework.Android]
+lib/net11.0-android*/DotGame.Framework.Android.{dll,xml}
+buildTransitive/DotGame.Framework.Android.props
+
+[DotGame.Framework.iOS]
+lib/net11.0-ios*/DotGame.Framework.iOS.{dll,xml}
+lib/net11.0-ios*/DotGame.Framework.iOS.resources/**
+buildTransitive/DotGame.Framework.iOS.props
+
+[DotGame.Templates]
+content/dotgame/.template.config/template.json
+content/dotgame/{.gitignore,Directory.Build.props,MyGame.slnx}
+content/dotgame/MyGame/{MainGame.cs,MyGame.projitems,MyGame.shproj}
+content/dotgame/Content/Textures/ball.png
+content/dotgame/Content/LaunchScreen/logo.png
+content/dotgame/MyGame.Desktop/{MyGame.Desktop.csproj,Program.cs}
+content/dotgame/MyGame.WebGL/{MyGame.WebGL.csproj,Program.cs}
+content/dotgame/MyGame.WebGL/Properties/launchSettings.json
+content/dotgame/MyGame.WebGL/wwwroot/{index.html,icon.svg}
+content/dotgame/MyGame.Android/{MyGame.Android.csproj,MainActivity.cs}
+content/dotgame/MyGame.Android/Properties/AndroidManifest.xml
+content/dotgame/MyGame.iOS/{MyGame.iOS.csproj,Program.cs,AppDelegate.cs,SceneDelegate.cs,Info.plist}

@@ -1,0 +1,7 @@
+<Project>
+
+    <!-- The framework's include: the platform's detection, its Debug switches and its iOS settings -->
+    <Import Project="$(MSBuildThisFileDirectory)..\build\DotGame.Framework.targets"
+                    Condition="'$(_DotGameFrameworkImported)' != 'true'" />
+
+</Project>

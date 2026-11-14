@@ -1,0 +1,135 @@
+<Project>
+
+    <!--
+        ContentPipeline.desktop.targets
+
+        Desktop content processor commands.  Import this instead of
+        ContentPipeline.targets in projects that target the SDL3 desktop
+        engine (Windows, macOS, Linux).
+
+        Pipeline (commands of the DotGame.Framework.ContentPipeline.BuildTool
+        tool, see ContentPipeline.BuildTool.props):
+            Textures   *.png   → *.ktx2         texture, ktx2 format  (premultiplied RGBA8, zlib; lossy items too)
+            Shaders    *.slang → *.frag.spv     shader  (SPIR-V, MSL and DXIL)
+                                                  + *.vert.spv     (SPIR-V for Vulkan)
+                                                  + *.vert.msl     (MSL for Metal)
+                                                  + *.frag.msl     (produced alongside)
+                                                  + *.vert.dxil    (DXIL for D3D12)
+                                                  + *.frag.dxil    (produced alongside)
+            Sound      *.wav   → *.wav/.flac/.opus  sound  (16-bit PCM WAV or FLAC, or Ogg Opus @ 48 kHz)
+            Sound Bank *       → *.wav/.flac/.opus + *.json  sound      (a sound bank)
+            Music      *.flac  → *.opus         music  (Ogg Opus @ 48 kHz)
+
+        Customisation: override any <Type>Content(Lossless|Lossy)ProcessorCommand
+        property in the consuming project before importing this file.
+
+        Tool paths are resolved by ExternalTools.props.  Override individual
+        tool locations by setting SlangCExe, SpirvCrossExe, or
+        Spirv2DxilExe before import.
+    -->
+
+    <Import Project="ExternalTools.props" />
+
+    <!-- ──────── Texture: PNG → KTX2 (premultiplied alpha) ──────── -->
+
+    <!--
+        Desktop textures are KTX2 files of premultiplied RGBA8 pixels, zlib
+        supercompressed (see Ktx2Format in the build tool), which the loader
+        inflates with .NET's own zlib.  Desktop has no native WebP decoder, and inflating is several
+        times faster than decoding WebP in managed code, for about 1.85 times the
+        size of lossless WebP.  Lossy items are written the same way, losslessly,
+        until GPU compressed textures (BC7, in the same container) replace them.
+
+        The command is a pure encoder; content caching is handled by the
+        shared MSBuild tasks (_TryRestoreFromContentCache / _SaveToContentCache
+        in ContentPipeline.targets), which derive the cache partition from the
+        normalized command template + the texture content version
+        (ContentVersions.props of the build tool).  Platforms
+        that encode identically share entries; any argument change
+        self-invalidates the cache automatically.
+    -->
+    <PropertyGroup Label="Desktop texture content processor (lossless)">
+        <TextureContentLosslessProcessorCommand Condition="'$(TextureContentLosslessProcessorCommand)' == ''">$(ContentPipelineBuildCommand) texture --format ktx2 --compression Lossless --input &quot;{InputFile}&quot; --output &quot;{OutputFile}&quot; --premultiply-alpha {PremultiplyAlpha}</TextureContentLosslessProcessorCommand>
+        <TextureContentNearLosslessProcessorCommand Condition="'$(TextureContentNearLosslessProcessorCommand)' == ''">$(ContentPipelineBuildCommand) texture --format ktx2 --compression Lossless --quality {Quality} --input &quot;{InputFile}&quot; --output &quot;{OutputFile}&quot; --premultiply-alpha {PremultiplyAlpha}</TextureContentNearLosslessProcessorCommand>
+        <TextureContentLosslessProcessorOutputExtension Condition="'$(TextureContentLosslessProcessorOutputExtension)' == ''">.ktx2</TextureContentLosslessProcessorOutputExtension>
+        <TextureContentNearLosslessProcessorOutputExtension Condition="'$(TextureContentNearLosslessProcessorOutputExtension)' == ''">.ktx2</TextureContentNearLosslessProcessorOutputExtension>
+    </PropertyGroup>
+
+    <PropertyGroup Label="Desktop texture content processor (lossy)">
+        <TextureContentLossyProcessorCommand Condition="'$(TextureContentLossyProcessorCommand)' == ''">$(ContentPipelineBuildCommand) texture --format ktx2 --compression Lossy --quality {Quality} --input &quot;{InputFile}&quot; --output &quot;{OutputFile}&quot; --premultiply-alpha {PremultiplyAlpha}</TextureContentLossyProcessorCommand>
+        <TextureContentLossyProcessorOutputExtension Condition="'$(TextureContentLossyProcessorOutputExtension)' == ''">.ktx2</TextureContentLossyProcessorOutputExtension>
+    </PropertyGroup>
+
+    <!-- ──────── Shader: Slang → SPIR-V + MSL + DXIL ──────── -->
+
+    <PropertyGroup Label="Desktop shader content processor">
+        <ShaderContentProcessorCommand Condition="'$(ShaderContentProcessorCommand)' == ''">$(ContentPipelineBuildCommand) shader --shader-types spirv,msl,dxil --slangc $(SlangCPath) --spirv-cross $(SpirvCrossPath) --spirv2dxil $(Spirv2DxilPath) --input &quot;{InputFile}&quot; --output &quot;{OutputFile}&quot; --intermediate-dir &quot;{IntermediateDir}&quot;</ShaderContentProcessorCommand>
+        <ShaderContentProcessorOutputExtension Condition="'$(ShaderContentProcessorOutputExtension)' == ''">.frag.spv</ShaderContentProcessorOutputExtension>
+    </PropertyGroup>
+
+    <!-- ──────── Sound: WAV or FLAC (lossless) / Ogg Opus (lossy) ──────── -->
+
+    <!--
+        Lossless sounds are FLAC, or 16-bit WAV where a sound's LosslessFormat says so (lossless sound
+        banks take the same metadata): FLAC is the same samples in about 44% of WAV's size once zipped
+        (games' sounds, 2026-11-07), decoded at load by DotGame.AudioCodecs, as on Android
+        (ContentPipeline.targets has what that costs).
+
+        Lossy sounds are Ogg Opus at 48 kHz, the rate Opus always decodes at, decoded at load by
+        DotGame.AudioCodecs (whose decoder is a port of libopus), as on Android.
+    -->
+
+    <PropertyGroup Label="Desktop sound content sample rate">
+        <SoundContentSampleRate Condition="'$(SoundContentSampleRate)' == ''">44100</SoundContentSampleRate>
+        <SoundContentLossySampleRate Condition="'$(SoundContentLossySampleRate)' == ''">48000</SoundContentLossySampleRate>
+    </PropertyGroup>
+
+    <PropertyGroup Label="Desktop sound content processor (lossless)">
+        <SoundContentFlacProcessorCommand Condition="'$(SoundContentFlacProcessorCommand)' == ''">$(ContentPipelineBuildCommand) sound --codec flac --compression Lossless --sample-rate $(SoundContentSampleRate) --input &quot;{InputFile}&quot; --output &quot;{OutputFile}&quot;</SoundContentFlacProcessorCommand>
+        <SoundContentFlacProcessorOutputExtension Condition="'$(SoundContentFlacProcessorOutputExtension)' == ''">.flac</SoundContentFlacProcessorOutputExtension>
+        <SoundContentWavProcessorCommand Condition="'$(SoundContentWavProcessorCommand)' == ''">$(ContentPipelineBuildCommand) sound --codec pcm_s16le --compression Lossless --sample-rate $(SoundContentSampleRate) --input &quot;{InputFile}&quot; --output &quot;{OutputFile}&quot;</SoundContentWavProcessorCommand>
+        <SoundContentWavProcessorOutputExtension Condition="'$(SoundContentWavProcessorOutputExtension)' == ''">.wav</SoundContentWavProcessorOutputExtension>
+    </PropertyGroup>
+
+    <PropertyGroup Label="Desktop sound content processor (lossy)">
+        <SoundContentLossyProcessorCommand Condition="'$(SoundContentLossyProcessorCommand)' == ''">$(ContentPipelineBuildCommand) sound --codec libopus --compression Lossy --quality {Quality} --sample-rate $(SoundContentLossySampleRate) --input &quot;{InputFile}&quot; --output &quot;{OutputFile}&quot;</SoundContentLossyProcessorCommand>
+        <SoundContentLossyProcessorOutputExtension Condition="'$(SoundContentLossyProcessorOutputExtension)' == ''">.opus</SoundContentLossyProcessorOutputExtension>
+    </PropertyGroup>
+
+    <!-- ──────── Music: FLAC/WAV → Ogg Opus @ 48 kHz ──────── -->
+
+    <!--
+        Ogg Opus at 48 kHz, as on the web and Android, streamed with
+        DotGame.AudioCodecs's OpusDecoder with sample-exact loops.  The channel count is intentionally NOT forced: mono
+        sources stay mono (music is decoded/streamed per-track, not summed
+        into a shared mixer buffer, so a uniform channel count is not
+        required).  The content manifest's Channels/SampleRate are probed
+        from this encoded output (see _ProbeMusicOutput) so they always
+        match the artifact the runtime decoder is built from.
+    -->
+    <PropertyGroup Label="Desktop music content processor">
+        <MusicContentProcessorCommand Condition="'$(MusicContentProcessorCommand)' == ''">$(ContentPipelineBuildCommand) music --codec libopus --sample-rate 48000 --quality {Quality} --input &quot;{InputFile}&quot; --output &quot;{OutputFile}&quot;</MusicContentProcessorCommand>
+        <MusicContentProcessorOutputExtension Condition="'$(MusicContentProcessorOutputExtension)' == ''">.opus</MusicContentProcessorOutputExtension>
+    </PropertyGroup>
+
+    <!--
+        Desktop shaders are emitted as per-stage role-tagged companion
+        files in three runtime formats (Vulkan SPIR-V, Metal MSL, D3D12
+        DXIL).  The SPIR-V outputs are also kept for SDL_GPU uniform-buffer
+        reflection on the MSL/DXIL backends.  Each variant becomes a sub-key
+        in the content manifest: "<key>:vert.spv", "<key>:frag.msl", etc.
+    -->
+    <PropertyGroup>
+        <ShaderContentManifestSubKeys Condition="'$(ShaderContentManifestSubKeys)' == ''">vert.spv=.vert.spv;frag.spv=.frag.spv;vert.msl=.vert.msl;frag.msl=.frag.msl;vert.dxil=.vert.dxil;frag.dxil=.frag.dxil</ShaderContentManifestSubKeys>
+    </PropertyGroup>
+
+    <!-- The launch screen: KTX2 textures, which the desktop host draws as its launch frame -->
+    <PropertyGroup>
+        <LaunchScreenPlatform>desktop</LaunchScreenPlatform>
+        <LaunchScreenImageExtension>.ktx2</LaunchScreenImageExtension>
+    </PropertyGroup>
+
+    <!-- Import the shared content pipeline infrastructure -->
+    <Import Project="ContentPipeline.targets" />
+
+</Project>

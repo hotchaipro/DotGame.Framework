@@ -1,0 +1,42 @@
+<Project>
+    <!--
+        Build rules for game code, imported by DotGame's projects (Directory.Build.props) and by
+        every game built on them:
+
+            - No reflection or LINQ (BannedSymbols.txt), as build error RS0030; a DiagnosticInfo is
+                the one approved place for reflection, for diagnostics only.
+            - No trim or AOT warnings (IL2xxx, IL3xxx): they're build errors.
+            - No package with a known vulnerability, direct or transitive, of any severity.
+            - No warnings: every warning is a build error, in the games as in DotGame.
+    -->
+    <PropertyGroup>
+        <DotGameBuildPolicyImported>true</DotGameBuildPolicyImported>
+
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <!-- The build's own warnings too (the SDKs', the content pipeline's), not just the compiler's -->
+        <MSBuildTreatWarningsAsErrors>true</MSBuildTreatWarningsAsErrors>
+
+        <NuGetAudit>true</NuGetAudit>
+        <NuGetAuditMode>all</NuGetAuditMode>
+        <NuGetAuditLevel>low</NuGetAuditLevel>
+        <WarningsAsErrors>$(WarningsAsErrors);NU1901;NU1902;NU1903;NU1904</WarningsAsErrors>
+
+        <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+        <EnableAotAnalyzer>true</EnableAotAnalyzer>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="5.6.0" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
+        <AdditionalFiles Include="$(MSBuildThisFileDirectory)BannedSymbols.txt" Link="BannedSymbols.txt" Visible="false" />
+
+        <!-- Errors through the analyzer config: WarningsAsErrors would also stop the suppressor below -->
+        <GlobalAnalyzerConfigFiles Include="$(MSBuildThisFileDirectory)DotGame.BuildPolicy.globalconfig" />
+
+    </ItemGroup>
+
+    <!-- Generated code isn't checked (System.Text.Json's source generator uses reflection). From
+              packages (DotGameUsePackages), the DotGame.Framework package brings these. -->
+    <ItemGroup Condition="'$(DotGameUsePackages)' != 'true'">
+        <ProjectReference Include="$(MSBuildThisFileDirectory)..\analyzers\DotGame.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    </ItemGroup>
+</Project>

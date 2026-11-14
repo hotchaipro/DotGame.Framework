@@ -1,0 +1,26 @@
+<Project>
+    <!--
+        DotGame.AudioCodecs, for the projects that decode or encode audio: the desktop and Android
+        platforms and the content build tool. The package by default (DotGameAudioCodecsVersion in
+        Versions.props); with DotGameAudioCodecsDir set to a clone of
+        https://github.com/hotchaipro/DotGame.AudioCodecs (an environment variable or
+        -p:DotGameAudioCodecsDir=...), its source instead, so a codec change and the framework change
+        that needs it build together before the codec is published.
+    -->
+    <PropertyGroup Condition="'$(DotGameAudioCodecsDir)' != ''">
+        <DotGameAudioCodecsDir>$([MSBuild]::NormalizeDirectory('$(DotGameAudioCodecsDir)'))</DotGameAudioCodecsDir>
+    </PropertyGroup>
+
+    <ItemGroup Condition="'$(DotGameAudioCodecsDir)' == ''">
+        <PackageReference Include="DotGame.AudioCodecs" Version="$(DotGameAudioCodecsVersion)" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(DotGameAudioCodecsDir)' != ''">
+        <ProjectReference Include="$(DotGameAudioCodecsDir)src\DotGame.AudioCodecs.csproj" />
+    </ItemGroup>
+
+    <Target Name="_CheckDotGameAudioCodecsDir" BeforeTargets="CollectPackageReferences;ResolveProjectReferences"
+            Condition="'$(DotGameAudioCodecsDir)' != '' and !Exists('$(DotGameAudioCodecsDir)src\DotGame.AudioCodecs.csproj')">
+        <Error Text="DotGameAudioCodecsDir is '$(DotGameAudioCodecsDir)', which isn't a clone of DotGame.AudioCodecs (no src\DotGame.AudioCodecs.csproj). Unset it to use the package." />
+    </Target>
+</Project>

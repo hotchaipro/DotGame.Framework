@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+        DotGame.Framework.ContentPipeline.Tasks: the MSBuild tasks of the
+        framework content pipeline, one file each, compiled once rather
+        than as inline RoslynCodeTaskFactory tasks, which recompiled every task
+        on every build (a compiler launch each, several seconds a build).
+
+        The targets build it on demand (..\ContentPipeline.Tasks.targets) into
+        bin\<hash of its sources>\, so an MSBuild node still holding an older
+        build never blocks a rebuild.  A new source file goes in the
+        hash in ..\ContentPipeline.Tasks.targets, and the build fails if it isn't.
+
+        netstandard2.0, against the MSBuild packages' reference assemblies (MSBuild
+        itself supplies them at run time), so the same assembly loads in dotnet
+        build and in Visual Studio's MSBuild.
+    -->
+
+    <PropertyGroup>
+        <TargetFramework>netstandard2.0</TargetFramework>
+        <LangVersion>latest</LangVersion>
+        <Nullable>disable</Nullable>
+        <IsPackable>false</IsPackable>
+        <GenerateDocumentationFile>false</GenerateDocumentationFile>
+        <!-- Ported from inline tasks: the repository's code style and analysis rules don't apply -->
+        <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
+        <AnalysisLevel>none</AnalysisLevel>
+        <!-- Inline task fragments end in returns of their own (CS0162) -->
+        <NoWarn>$(NoWarn);CS0162</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Build.Utilities.Core" Version="$(MicrosoftBuildUtilitiesCoreVersion)" ExcludeAssets="runtime" PrivateAssets="all" />
+    </ItemGroup>
+
+</Project>

@@ -1,0 +1,16 @@
+<Project>
+
+    <!-- The platform a game builds for is the one whose package it references -->
+    <PropertyGroup>
+        <DotGamePlatform>ios</DotGamePlatform>
+
+        <!--
+            iOS runs no code made at run time (see the framework's include). Set in props, before the
+            project's body, because the SDK reads DynamicCodeSupport early: from the targets, an iOS
+            Release build would still emit invoke stubs and crash at launch.
+        -->
+        <DynamicCodeSupport>false</DynamicCodeSupport>
+        <Registrar Condition="'$(Registrar)' == ''">managed-static</Registrar>
+    </PropertyGroup>
+
+</Project>

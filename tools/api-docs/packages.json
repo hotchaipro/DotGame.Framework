@@ -1,0 +1,18 @@
+// What tools/api-docs/generate.cs documents in this repository: see the comment on ReadPackages there
+{
+  // docs/api/README.md is the index of this repository's packages
+  "writeIndex": true,
+  "allPackages": "../README.md",
+  "packages": [
+    {
+      "name": "Framework",
+      "description": "The core of every game: lifecycle, graphics, audio, input, content and time.",
+      "roots": ["framework"],
+      "folder": "Framework"
+    },
+    { "name": "Desktop", "description": "Runs a game on Windows, macOS and Linux.", "roots": ["platform/desktop"], "folder": "Desktop" },
+    { "name": "Web", "description": "Runs a game in a browser.", "roots": ["platform/webgl"], "folder": "Web" },
+    { "name": "Android", "description": "Runs a game on Android.", "roots": ["platform/android"], "folder": "Android" },
+    { "name": "iOS", "description": "Runs a game on iOS.", "roots": ["platform/ios"], "folder": "iOS" }
+  ]
+}

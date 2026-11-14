@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <!-- Compiler extensions for game code; loaded by the compiler, not shipped with games -->
+    <PropertyGroup>
+        <TargetFramework>netstandard2.0</TargetFramework>
+        <LangVersion>latest</LangVersion>
+        <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+        <IsRoslynComponent>true</IsRoslynComponent>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="$(MicrosoftCodeAnalysisCSharpAnalyzerVersion)" PrivateAssets="all" />
+    </ItemGroup>
+
+    <!-- Release tracking for the rules the analyzers report (RS2008) -->
+    <ItemGroup>
+        <AdditionalFiles Include="..\eng\api\DotGame.Analyzers\AnalyzerReleases.Shipped.md" Visible="false" />
+        <AdditionalFiles Include="..\eng\api\DotGame.Analyzers\AnalyzerReleases.Unshipped.md" Visible="false" />
+    </ItemGroup>
+</Project>

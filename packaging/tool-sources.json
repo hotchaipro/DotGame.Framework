@@ -1,0 +1,47 @@
+{
+  "_comment": "The content tools in DotGame.Framework.Build.Tools.<rid>, from these sources only: one source per tool on every build machine, pinned by version and SHA-256 (GitHub's digest of each release file). packaging/fetch-tools.py reads this. To update a tool, change its version and digests here; the pipeline tests then need goldens recorded for the new tool hashes.",
+  "slang": {
+    "version": "2026.1",
+    "project": "https://github.com/shader-slang/slang",
+    "license": "Apache-2.0 WITH LLVM-exception",
+    "url": "https://github.com/shader-slang/slang/releases/download/v2026.1/{file}",
+    "files": {
+      "win-x64": ["slang-2026.1-windows-x86_64.zip", "29ff6cda6fe07c0423f81b19d44f3075090c7c4256ccc7d716aefe3947e72484"],
+      "win-arm64": ["slang-2026.1-windows-aarch64.zip", "5e1ef8a8d7cada6a93efd0f9596a4f2eeff1a9c7b42af96a4a83560f25975310"],
+      "linux-x64": ["slang-2026.1-linux-x86_64-glibc-2.27.zip", "37c6ac5bc7c91f1cd43af28c51a5fccaa9d4e6770c0a56ff068abac490056e2e"],
+      "linux-arm64": ["slang-2026.1-linux-aarch64.zip", "7be9b8d2c1e14b1344be15e209241f6c237ee3a9a0baa5ac299d89d93f9c83f1"],
+      "osx-arm64": ["slang-2026.1-macos-aarch64.zip", "314bd4c6441fa10ddd651f001e68d6e2826b7388ca46ad9ff1036f0ce514f156"]
+    }
+  },
+  "spirv-cross": {
+    "version": "vulkan-sdk-1.4.341.0",
+    "project": "https://github.com/KhronosGroup/SPIRV-Cross",
+    "license": "Apache-2.0",
+    "repository": "https://github.com/KhronosGroup/SPIRV-Cross.git",
+    "commit": "a0fba56c34a6700f1724bf9b751da5b488a3775c"
+  },
+  "astcenc": {
+    "version": "5.7.0",
+    "project": "https://github.com/ARM-software/astc-encoder",
+    "license": "Apache-2.0",
+    "url": "https://github.com/ARM-software/astc-encoder/releases/download/5.7.0/{file}",
+    "files": {
+      "win-x64": ["astcenc-5.7.0-windows-x64.zip", "cbde7c78adcc90d0d90ecf10f32d03f3340fbe1720cb6d6c892147d625e74d2d", "bin/astcenc-sse2.exe"],
+      "win-arm64": ["astcenc-5.7.0-windows-arm64.zip", "5b18285fda1eeb884fff5d1846c5669bafd38552c55c6a08d5bd8f6b8589c081", "bin/astcenc-neon.exe"],
+      "osx-arm64": ["astcenc-5.7.0-macos-universal.zip", "374b2f0aea1d3ab5f849784666d6ece6e27b4bc1f945e5c90d6eeabf00e955f8", "bin/astcenc"]
+    },
+    "_build_comment": "Arm's Linux releases need glibc 2.38 (Ubuntu 24.04), so on Linux astcenc is built from the release's commit, on the oldest supported Ubuntu, with libstdc++ linked in. Floating-point invariance (on by default) keeps its output the same as the release builds'.",
+    "repository": "https://github.com/ARM-software/astc-encoder.git",
+    "commit": "baff485b0ff36d2f95d28961605106502c653966",
+    "build": {
+      "linux-x64": "SSE2",
+      "linux-arm64": "NEON"
+    }
+  },
+  "spirv2dxil": {
+    "version": "Mesa 26.2.6",
+    "project": "https://gitlab.freedesktop.org/mesa/mesa",
+    "license": "MIT",
+    "from": "native/spirv2dxil/{rid}"
+  }
+}

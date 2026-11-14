@@ -1,0 +1,103 @@
+name: CI
+
+# Builds every project (DotGame.Framework.slnx) and runs the tests, on Windows, Linux and macOS, with
+# the content pipeline's pinned tools (packaging/tool-sources.json).
+#
+# Run by hand only until the repository is public. Then turn on its push and pull request triggers:
+#
+#   on:
+#     push:
+#       branches: [main]
+#     pull_request:
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+          - os: ubuntu-22.04
+            rid: linux-x64
+          - os: macos-latest
+            rid: osx-arm64
+    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.rid }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '11.0.x'
+      - name: Install the workloads
+        if: runner.os != 'Linux'
+        run: dotnet workload install android ios wasm-tools
+      - name: Install the workloads
+        if: runner.os == 'Linux'
+        run: dotnet workload install android wasm-tools
+      - name: Set up MSVC
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+      - name: Fetch the pinned tools
+        run: python packaging/fetch-tools.py ${{ matrix.rid }} artifacts/tools/${{ matrix.rid }}
+      - name: Put the tools on PATH
+        shell: bash
+        run: |
+          echo "VULKAN_SDK=" >> "$GITHUB_ENV"
+          tools="$GITHUB_WORKSPACE/artifacts/tools/${{ matrix.rid }}/tools"
+          if [ "$RUNNER_OS" = Windows ]; then tools=$(cygpath -w "$tools"); fi
+          echo "$tools" >> "$GITHUB_PATH"
+      # Linux has no iOS workload, so it builds everything else
+      - name: Build
+        if: runner.os != 'Linux'
+        run: dotnet build DotGame.Framework.slnx
+      - name: Build
+        if: runner.os == 'Linux'
+        shell: bash
+        run: dotnet sln DotGame.Framework.slnx list | grep '\.csproj$' | grep -v '\.iOS\.csproj$' | xargs -n1 dotnet build
+      - name: Test
+        # The tests alone: the solution's sample apps aren't tests, and dotnet test would ask for a device to run them on
+        run: dotnet test --solution test/DotGame.Framework.Tests.slnf --no-build
+
+  # The API reference is up to date with the doc comments, and the docs' links resolve. Compiling the
+  # guides' samples (tools/api-docs/check-docs.cs without --links) needs the content pipeline's tools,
+  # so it's left to a local run.
+  docs:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      # The docs' tools are copies of DotGame.Imaging's
+      - name: Check out DotGame.Imaging
+        uses: actions/checkout@v4
+        with:
+          repository: hotchaipro/DotGame.Imaging
+          path: siblings/DotGame.Imaging
+      - name: Check the docs' tools are DotGame.Imaging's
+        run: |
+          for tool in generate.cs check-docs.cs; do
+            cmp tools/api-docs/$tool siblings/DotGame.Imaging/tools/api-docs/$tool || { echo "tools/api-docs/$tool isn't DotGame.Imaging's, the original: change it there and copy it here"; exit 1; }
+          done
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '11.0.x'
+      - name: Check the API reference
+        run: dotnet run tools/api-docs/generate.cs -- --check
+      - name: Check the links
+        run: dotnet run tools/api-docs/check-docs.cs -- --links

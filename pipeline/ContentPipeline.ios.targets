@@ -1,0 +1,236 @@
+<Project>
+
+    <!--
+        ContentPipeline.ios.targets
+
+        iOS content processor commands.  Import this instead of
+        ContentPipeline.targets in projects that target the iOS Metal engine.
+
+        Pipeline (commands of the DotGame.Framework.ContentPipeline.BuildTool
+        tool, see ContentPipeline.BuildTool.props):
+            Textures   *.png   → *.webp         texture  (lossless or lossy WebP, premultiplied alpha)
+                                                  → *.ktx2         texture  (GpuCompression: ASTC, premultiplied alpha)
+            Shaders    *.slang → *.frag.msl     shader  (MSL)
+                                                  + *.vert.msl     (MSL for Metal)
+            Sound      *.wav   → *.wav/.flac   sound  (WAV or FLAC)
+            Sound Bank *       → *.wav/.flac/.m4a/.caf + *.json sound      (a sound bank)
+            Music      *.flac  → *.m4a/.caf     music  (AAC 160 kbps at Q=5, or Opus)
+
+        AAC is macOS's own encoder and file writer (AudioToolbox, through
+        afconvert: the build tool reads and resamples the source, afconvert
+        encodes it), so iOS content with AAC builds only on a Mac, as iOS apps
+        do: the build tool fails with an error elsewhere.  DotGame ships no AAC
+        encoder of its own (patents).  Not ffmpeg's aac_at wrapper: its files run
+        up to a frame past the audio, which music would loop through as a gap.
+
+        A lossy bank or a track with LossyFormat="Opus" is Opus instead, at 48 kHz:
+        the same packets as on the other platforms, in a Core Audio Format file
+        (the build tool's CafOpusWriter).  AVAudioFile reads Opus in CAF (not in
+        Ogg), decodes it with the system's own decoder (iOS 11 and later) and
+        trims the encoder's priming and padding from the packet table, so lengths
+        and bank offsets are exact.  It's about 56% of AAC's size at the same
+        quality step (a game's music), but AAC is the default: iOS's AAC
+        decoder took a fifth of the CPU Opus did on the M2 (2026-11-08).
+
+        Customisation: override any <Type>Content(Lossless|Lossy)ProcessorCommand
+        property in the consuming project before importing this file.
+
+        Tool paths are resolved by ExternalTools.props.  Override individual
+        tool locations by setting AstcEncExe, SlangCExe, or SpirvCrossExe
+        before import.
+    -->
+
+    <Import Project="ExternalTools.props" />
+
+    <!-- ──────── Texture: PNG → WebP (premultiplied alpha) ──────── -->
+
+    <PropertyGroup Label="iOS texture content processor (lossless)">
+        <TextureContentLosslessProcessorCommand Condition="'$(TextureContentLosslessProcessorCommand)' == ''">$(ContentPipelineBuildCommand) texture --compression Lossless --input &quot;{InputFile}&quot; --output &quot;{OutputFile}&quot; --premultiply-alpha {PremultiplyAlpha}</TextureContentLosslessProcessorCommand>
+        <TextureContentNearLosslessProcessorCommand Condition="'$(TextureContentNearLosslessProcessorCommand)' == ''">$(ContentPipelineBuildCommand) texture --compression Lossless --quality {Quality} --input &quot;{InputFile}&quot; --output &quot;{OutputFile}&quot; --premultiply-alpha {PremultiplyAlpha}</TextureContentNearLosslessProcessorCommand>
+        <TextureContentLosslessProcessorOutputExtension Condition="'$(TextureContentLosslessProcessorOutputExtension)' == ''">.webp</TextureContentLosslessProcessorOutputExtension>
+        <TextureContentNearLosslessProcessorOutputExtension Condition="'$(TextureContentNearLosslessProcessorOutputExtension)' == ''">.webp</TextureContentNearLosslessProcessorOutputExtension>
+    </PropertyGroup>
+
+    <!--
+        Textures that opt into GPU compression (GpuCompression="true") are
+        ASTC, which every iOS device (iOS 15 and later) and nearly every Android
+        device samples compressed: a quarter of RGBA8's memory or less, and
+        nothing to decode at load, but larger to download than lossy WebP.
+        Quality picks the block size (8-10: 4x4, 8 bits a pixel; 5-7: 6x6; 1-4:
+        8x8), in a KTX2 file.  Android decodes ASTC on the CPU on the few GPUs
+        without it.  Other lossy and lossless textures are WebP.
+    -->
+    <PropertyGroup Label="iOS texture content processor (lossy)">
+        <TextureContentLossyProcessorCommand Condition="'$(TextureContentLossyProcessorCommand)' == ''">$(ContentPipelineBuildCommand) texture --compression Lossy --quality {Quality} --input &quot;{InputFile}&quot; --output &quot;{OutputFile}&quot; --premultiply-alpha {PremultiplyAlpha}</TextureContentLossyProcessorCommand>
+        <TextureContentLossyProcessorOutputExtension Condition="'$(TextureContentLossyProcessorOutputExtension)' == ''">.webp</TextureContentLossyProcessorOutputExtension>
+    </PropertyGroup>
+
+    <PropertyGroup Label="iOS texture content processor (GPU compressed)">
+        <TextureContentGpuProcessorCommand Condition="'$(TextureContentGpuProcessorCommand)' == ''">$(ContentPipelineBuildCommand) texture --format ktx2 --gpu-compression astc --astcenc $(AstcEncPath) --compression Lossy --quality {Quality} --input &quot;{InputFile}&quot; --output &quot;{OutputFile}&quot; --intermediate-dir &quot;{IntermediateDir}&quot; --premultiply-alpha {PremultiplyAlpha}</TextureContentGpuProcessorCommand>
+        <TextureContentGpuProcessorOutputExtension Condition="'$(TextureContentGpuProcessorOutputExtension)' == ''">.ktx2</TextureContentGpuProcessorOutputExtension>
+    </PropertyGroup>
+
+    <!-- ──────── Shader: Slang → MSL (Metal Shading Language) ──────── -->
+
+    <PropertyGroup Label="iOS shader content processor">
+        <ShaderContentProcessorCommand Condition="'$(ShaderContentProcessorCommand)' == ''">$(ContentPipelineBuildCommand) shader --shader-types msl --slangc $(SlangCPath) --spirv-cross $(SpirvCrossPath) --input &quot;{InputFile}&quot; --output &quot;{OutputFile}&quot; --intermediate-dir &quot;{IntermediateDir}&quot;</ShaderContentProcessorCommand>
+        <!-- Track .frag.msl: fragment stage is always produced; vertex is optional. -->
+        <ShaderContentProcessorOutputExtension Condition="'$(ShaderContentProcessorOutputExtension)' == ''">.frag.msl</ShaderContentProcessorOutputExtension>
+    </PropertyGroup>
+
+    <!-- ──────── Sound: WAV or FLAC (lossless, see the desktop targets) / AAC M4A (lossy) ──────── -->
+
+    <PropertyGroup Label="iOS sound content sample rate">
+        <SoundContentSampleRate Condition="'$(SoundContentSampleRate)' == ''">44100</SoundContentSampleRate>
+    </PropertyGroup>
+
+    <PropertyGroup Label="iOS sound content processor (lossless)">
+        <SoundContentFlacProcessorCommand Condition="'$(SoundContentFlacProcessorCommand)' == ''">$(ContentPipelineBuildCommand) sound --codec flac --compression Lossless --sample-rate $(SoundContentSampleRate) --input &quot;{InputFile}&quot; --output &quot;{OutputFile}&quot;</SoundContentFlacProcessorCommand>
+        <SoundContentFlacProcessorOutputExtension Condition="'$(SoundContentFlacProcessorOutputExtension)' == ''">.flac</SoundContentFlacProcessorOutputExtension>
+        <SoundContentWavProcessorCommand Condition="'$(SoundContentWavProcessorCommand)' == ''">$(ContentPipelineBuildCommand) sound --codec pcm_s16le --compression Lossless --sample-rate $(SoundContentSampleRate) --input &quot;{InputFile}&quot; --output &quot;{OutputFile}&quot;</SoundContentWavProcessorCommand>
+        <SoundContentWavProcessorOutputExtension Condition="'$(SoundContentWavProcessorOutputExtension)' == ''">.wav</SoundContentWavProcessorOutputExtension>
+    </PropertyGroup>
+
+    <PropertyGroup Label="iOS sound content processor (lossy)">
+        <SoundContentLossyProcessorCommand Condition="'$(SoundContentLossyProcessorCommand)' == ''">$(ContentPipelineBuildCommand) sound --codec aac_at --compression Lossy --quality {Quality} --sample-rate $(SoundContentSampleRate) --input &quot;{InputFile}&quot; --output &quot;{OutputFile}&quot;</SoundContentLossyProcessorCommand>
+        <SoundContentLossyProcessorOutputExtension Condition="'$(SoundContentLossyProcessorOutputExtension)' == ''">.m4a</SoundContentLossyProcessorOutputExtension>
+    </PropertyGroup>
+
+    <PropertyGroup Label="iOS sound content processor (lossy, LossyFormat=Opus)">
+        <SoundContentOpusSampleRate Condition="'$(SoundContentOpusSampleRate)' == ''">48000</SoundContentOpusSampleRate>
+        <SoundContentOpusProcessorCommand Condition="'$(SoundContentOpusProcessorCommand)' == ''">$(ContentPipelineBuildCommand) sound --codec libopus --compression Lossy --quality {Quality} --sample-rate $(SoundContentOpusSampleRate) --input &quot;{InputFile}&quot; --output &quot;{OutputFile}&quot;</SoundContentOpusProcessorCommand>
+        <SoundContentOpusProcessorOutputExtension Condition="'$(SoundContentOpusProcessorOutputExtension)' == ''">.caf</SoundContentOpusProcessorOutputExtension>
+    </PropertyGroup>
+
+    <!-- ──────── Music: FLAC/WAV → AAC M4A (160 kbps at Q=5, AudioToolbox) ──────── -->
+
+    <!--
+        Routed through the build tool's music command like every other
+        platform so the Quality metadata on MusicContent is honoured here
+        too, and so the quality scale means the same thing across platforms
+        (the AAC bitrate ladder is shared with the sound command).
+
+        At the default Quality of 5 this produces 160 kbps, exactly matching
+        the previous inline ffmpeg command ('-b:a 160k -ac 2') that it
+        replaced, so default output is unchanged in bitrate (the encoder is
+        AudioToolbox's since 2026-11, at constant bitrate).  One deliberate
+        difference: the channel count is no longer forced to stereo.
+        Preserving the source layout is the framework's intended music
+        behaviour (see the music command) because music is streamed and decoded
+        per track rather than summed into a shared mixer buffer, so a mono
+        track has no reason to be upmixed and pay double the bitrate.  The
+        manifest's Channels value is read from the encoded output by
+        _ProbeMusicOutput, so it follows automatically.
+    -->
+    <PropertyGroup Label="iOS music content processor">
+        <MusicContentProcessorCommand Condition="'$(MusicContentProcessorCommand)' == ''">$(ContentPipelineBuildCommand) music --codec aac_at --quality {Quality} --input &quot;{InputFile}&quot; --output &quot;{OutputFile}&quot;</MusicContentProcessorCommand>
+        <MusicContentProcessorOutputExtension Condition="'$(MusicContentProcessorOutputExtension)' == ''">.m4a</MusicContentProcessorOutputExtension>
+    </PropertyGroup>
+
+    <PropertyGroup Label="iOS music content processor (LossyFormat=Opus)">
+        <MusicContentOpusProcessorCommand Condition="'$(MusicContentOpusProcessorCommand)' == ''">$(ContentPipelineBuildCommand) music --codec libopus --sample-rate 48000 --quality {Quality} --input &quot;{InputFile}&quot; --output &quot;{OutputFile}&quot;</MusicContentOpusProcessorCommand>
+        <MusicContentOpusProcessorOutputExtension Condition="'$(MusicContentOpusProcessorOutputExtension)' == ''">.caf</MusicContentOpusProcessorOutputExtension>
+    </PropertyGroup>
+
+    <!--
+        iOS shaders are emitted as per-stage MSL companion files
+        (foo.vert.msl + foo.frag.msl).  Each stage is registered as a
+        sub-key in the content manifest: "<key>:vert.msl", "<key>:frag.msl".
+    -->
+    <PropertyGroup>
+        <ShaderContentManifestSubKeys Condition="'$(ShaderContentManifestSubKeys)' == ''">vert.msl=.vert.msl;frag.msl=.frag.msl</ShaderContentManifestSubKeys>
+    </PropertyGroup>
+
+    <!-- The launch screen: LaunchScreen.storyboard and its images (Info.plist's UILaunchStoryboardName is "LaunchScreen") -->
+    <PropertyGroup>
+        <LaunchScreenPlatform>ios</LaunchScreenPlatform>
+    </PropertyGroup>
+
+    <!-- Import the shared content pipeline infrastructure -->
+    <Import Project="ContentPipeline.targets" />
+
+    <!--
+        _RegisterLaunchScreenBundleResources – the generated storyboard and its images, before the
+        SDK compiles interface definitions and collects bundle resources.
+    -->
+    <Target Name="_RegisterLaunchScreenBundleResources"
+                    DependsOnTargets="BuildContent"
+                    BeforeTargets="_BeforeCoreCompileInterfaceDefinitions;_CompileInterfaceDefinitions;_CollectBundleResources"
+                    Condition="'@(LaunchScreen)' != ''">
+        <ItemGroup>
+            <InterfaceDefinition Include="$(LaunchScreenResourceDir)LaunchScreen.storyboard"
+                                                      Condition="'@(InterfaceDefinition->WithMetadataValue('Filename', 'LaunchScreen'))' == ''">
+                <Link>LaunchScreen.storyboard</Link>
+            </InterfaceDefinition>
+            <_LaunchScreenBundleImage Include="$(LaunchScreenResourceDir)*.png" />
+            <BundleResource Include="@(_LaunchScreenBundleImage)"
+                                            Exclude="@(BundleResource)">
+                <Link>%(Filename)%(Extension)</Link>
+                <LogicalName>%(Filename)%(Extension)</LogicalName>
+            </BundleResource>
+        </ItemGroup>
+    </Target>
+
+    <!--
+        _CopyContentToAppBundle
+        iOS .app bundle.  The shared _CopyContentToOutputDirectory copies to
+        $(OutDir) which is a sibling of the .app, not inside it.
+    -->
+    <Target Name="_CopyContentToAppBundle"
+                    AfterTargets="_CopyResourcesToBundle"
+                    DependsOnTargets="BuildContent;_ValidateContentPipeline"
+                    Condition="'$(AppBundleDir)' != ''">
+        <ItemGroup>
+            <_ContentPipelineBundleOutput Include="$(ContentOutputDir)**\*.*"
+                                                                        Exclude="$(ContentOutputDir)**\*.spv" />
+        </ItemGroup>
+        <Copy Condition="'@(_ContentPipelineBundleOutput)' != ''"
+                    SourceFiles="@(_ContentPipelineBundleOutput)"
+                    DestinationFiles="@(_ContentPipelineBundleOutput -> '$(AppBundleDir)/%(RecursiveDir)%(Filename)%(Extension)')"
+                    SkipUnchangedFiles="true">
+            <!-- Record the copies so Clean removes the staged content from the
+                      app bundle; see _CopyContentToOutputDirectory for detail. -->
+            <Output TaskParameter="CopiedFiles" ItemName="FileWrites" />
+        </Copy>
+        <!-- What the last build copied and this one doesn't: an incremental bundle keeps it otherwise -->
+        <PropertyGroup>
+            <_ContentPipelineBundleList>$(ContentIntermediateDir)app-bundle-files.txt</_ContentPipelineBundleList>
+        </PropertyGroup>
+        <ReadLinesFromFile File="$(_ContentPipelineBundleList)" Condition="Exists('$(_ContentPipelineBundleList)')">
+            <Output TaskParameter="Lines" ItemName="_ContentPipelineBundlePrevious" />
+        </ReadLinesFromFile>
+        <ItemGroup>
+            <_ContentPipelineBundleCurrent Include="@(_ContentPipelineBundleOutput->'%(RecursiveDir)%(Filename)%(Extension)')" />
+            <_ContentPipelineBundleStale Include="@(_ContentPipelineBundlePrevious)" Exclude="@(_ContentPipelineBundleCurrent)" />
+        </ItemGroup>
+        <Delete Files="@(_ContentPipelineBundleStale->'$(AppBundleDir)/%(Identity)')" />
+        <WriteLinesToFile File="$(_ContentPipelineBundleList)"
+                                            Lines="@(_ContentPipelineBundleCurrent)"
+                                            Overwrite="true"
+                                            WriteOnlyWhenDifferent="true" />
+    </Target>
+    <!--
+        _CleanContentFromAppBundle – remove content staged into the .app bundle.
+
+        The shared _CleanContent removes the pipeline's own directories plus the
+        copies under $(OutDir); the bundle is a separate destination that it
+        knows nothing about, so the same orphan sweep is repeated here.
+        Recording the copies in FileWrites (above) already covers whatever the
+        current build staged, but content that has since been renamed, removed,
+        or re-encoded to a different extension was never in any clean list.
+
+        Runs BEFORE _CleanContent because the directory names are derived from
+        $(ContentOutputDir), which _CleanContent deletes.
+    -->
+    <Target Name="_CleanContentFromAppBundle"
+                    BeforeTargets="_CleanContent"
+                    DependsOnTargets="_ValidateContentPipeline"
+                    Condition="'$(AppBundleDir)' != '' and Exists('$(ContentOutputDir)')">
+        <ItemGroup>
+            <_ContentPipelineBundleStagedDir Include="$([System.IO.Directory]::GetDirectories('$(ContentOutputDir)'))" />
+        </ItemGroup>
+        <RemoveDir Condition="'@(_ContentPipelineBundleStagedDir)' != ''"
+                              Directories="@(_ContentPipelineBundleStagedDir->'$(AppBundleDir)/%(Filename)%(Extension)')" />
+    </Target>
+
+</Project>

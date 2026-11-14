@@ -1,0 +1,61 @@
+<Project>
+
+    <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
+
+    <PropertyGroup>
+        <TargetFramework>net11.0-android</TargetFramework>
+        <!-- The generated Resource class isn't part of the framework's API -->
+        <AndroidResourceDesignerClassModifier>internal</AndroidResourceDesignerClassModifier>
+        <SupportedOSPlatformVersion>24</SupportedOSPlatformVersion>
+        <OutputType>Library</OutputType>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <Nullable>enable</Nullable>
+        <IsAotCompatible>true</IsAotCompatible>
+    </PropertyGroup>
+
+    <PropertyGroup>
+        <InvariantTimezone>true</InvariantTimezone>
+        <InvariantGlobalization>true</InvariantGlobalization>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+        <PublishTrimmed>true</PublishTrimmed>
+        <TrimMode>full</TrimMode>
+        <DebuggerSupport>false</DebuggerSupport>
+        <EventSourceSupport>false</EventSourceSupport>
+        <StackTraceSupport>false</StackTraceSupport>
+        <MetricsSupport>false</MetricsSupport>
+        <Http3Support>false</Http3Support>
+        <EnableUnsafeBinaryFormatterSerialization>false</EnableUnsafeBinaryFormatterSerialization>
+        <EnableUnsafeUTF7Encoding>false</EnableUnsafeUTF7Encoding>
+        <UseSystemResourceKeys>true</UseSystemResourceKeys>
+        <UseNativeHttpHandler>true</UseNativeHttpHandler>
+        <MetadataUpdaterSupport>false</MetadataUpdaterSupport>
+        <HttpActivityPropagationSupport>false</HttpActivityPropagationSupport>
+        <XmlResolverIsNetworkingEnabledByDefault>false</XmlResolverIsNetworkingEnabledByDefault>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\framework\DotGame.Framework.csproj" />
+    </ItemGroup>
+
+    <PropertyGroup>
+        <DefaultShaderTarget>glsl</DefaultShaderTarget>
+        <DefaultShaderNamespace>DotGame.Framework.Android.Graphics</DefaultShaderNamespace>
+    </PropertyGroup>
+
+    <!-- Decodes audio in managed code, with DotGame.AudioCodecs (see the shared project) -->
+    <PropertyGroup>
+        <DotGameManagedAudioDecoding>true</DotGameManagedAudioDecoding>
+    </PropertyGroup>
+    <Import Project="..\shared\DotGame.Framework.Platform.Common.projitems" Label="Shared" />
+    <Import Project="..\shared\DefaultShaders.targets" />
+
+    <Import Project="..\..\eng\DotGame.PublicApi.props" />
+
+    <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
+
+    <!-- After the SDK's targets, the Android workload's among them (see the file) -->
+    <Import Project="..\..\eng\DotGame.Framework.Android.After.targets" />
+
+</Project>

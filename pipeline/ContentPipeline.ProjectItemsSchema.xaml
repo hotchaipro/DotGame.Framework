@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Registers the content pipeline item types with the .NET Project System (CPS)
+    so they appear with proper display names in Solution Explorer and the
+    Build Action dropdown.
+
+    This container carries ONLY the item-type / content-type / file-extension
+    registrations.  Properties shown in the Visual Studio Properties pane are
+    defined by the separate *.BrowseObject.xaml rule files, because a <Rule>
+    inside this container is never surfaced there (see those files for detail).
+
+    Loaded via PropertyPageSchema in ContentPipeline.targets.
+-->
+<ProjectSchemaDefinitions xmlns="http://schemas.microsoft.com/build/2009/properties">
+
+  <ItemType Name="TextureContent"     DisplayName="Texture Content" />
+  <ItemType Name="ShaderContent"      DisplayName="Shader Content" />
+  <ItemType Name="SoundContent"        DisplayName="Sound Content" />
+  <ItemType Name="MusicContent"       DisplayName="Music Content" />
+  <ItemType Name="DataContent"        DisplayName="Data Content" />
+
+  <ContentType Name="TextureContent"     DisplayName="Texture Content"      ItemType="TextureContent" />
+  <ContentType Name="ShaderContent"      DisplayName="Shader Content"       ItemType="ShaderContent" />
+  <ContentType Name="SoundContent"        DisplayName="Sound Content"        ItemType="SoundContent" />
+  <ContentType Name="MusicContent"       DisplayName="Music Content"        ItemType="MusicContent" />
+  <ContentType Name="DataContent"        DisplayName="Data Content"         ItemType="DataContent" />
+
+  <!-- File extension associations.
+       DataContent handles arbitrary extensions so no mappings are registered. -->
+  <FileExtension Name=".png"   ContentType="TextureContent" />
+  <FileExtension Name=".slang" ContentType="ShaderContent" />
+  <FileExtension Name=".wav"   ContentType="SoundContent" />
+  <FileExtension Name=".flac"  ContentType="MusicContent" />
+  <FileExtension Name=".mp3"   ContentType="MusicContent" />
+  <FileExtension Name=".aac"   ContentType="MusicContent" />
+  <FileExtension Name=".ogg"   ContentType="MusicContent" />
+
+</ProjectSchemaDefinitions>

@@ -1,0 +1,56 @@
+<Project InitialTargets="_DotGameRestoreTools">
+
+    <Import Project="$(MSBuildThisFileDirectory)..\pipeline\build\DotGame.Framework.ContentPipeline.targets"
+                    Condition="'$(_FrameworkContentPipelineImported)' != 'true'" />
+
+    <!--
+        The build machine's tool package, for a game head (a project with a platform: a library that
+        only references the framework or a library built on it builds no content), at the exact version. The
+        command line's restore leaves packages' build files out (ExcludeRestorePackageImports), so it
+        never sees this; Visual Studio collects restore's inputs from its design-time builds, which do.
+    -->
+    <PropertyGroup>
+        <_DotGameWantsTools Condition="'$(DotGameRestoreTools)' != 'false' and '$(DotGamePlatform)' != ''">true</_DotGameWantsTools>
+    </PropertyGroup>
+
+    <ItemGroup Condition="'$(_DotGameWantsTools)' == 'true' and '$(_DotGameBuildMachineSupported)' == 'true'">
+        <PackageDownload Include="$(_DotGameToolsPackage)" Version="[$(_DotGameToolsVersion)]" />
+    </ItemGroup>
+
+    <!--
+        Before anything else a build runs (an initial target, so ahead of the content pipeline). When
+        the tools aren't in NuGet's packages folder, as on a machine's first build, this restores them,
+        once, through NuGet, with the game's NuGet.config, sources and packages folder (RestoreTools.proj,
+        with its intermediate files in the game's obj folder). Not while restoring, and not in an IDE's
+        design-time builds.
+    -->
+    <Target Name="_DotGameRestoreTools"
+                    Condition="'$(_DotGameWantsTools)' == 'true' and '$(MSBuildIsRestoring)' != 'true' and '$(DesignTimeBuild)' != 'true'">
+        <Error Code="DGBUILD0001"
+                      Condition="'$(_DotGameBuildMachineSupported)' != 'true'"
+                      Text="DotGame has no content tools for this build machine ($(DotGameBuildRuntimeIdentifier)). Games build on win-x64, win-arm64, osx-arm64, linux-x64 and linux-arm64. To use tools installed on this machine instead, set DotGameRestoreTools to false." />
+
+        <PropertyGroup>
+            <_DotGameToolsMissing Condition="!Exists('$(DotGameToolsDir)')">true</_DotGameToolsMissing>
+            <_DotGameToolsRestoreDir>$([MSBuild]::EnsureTrailingSlash('$([System.IO.Path]::GetFullPath('$(BaseIntermediateOutputPath)', '$(MSBuildProjectDirectory)'))'))dotgame-tools/</_DotGameToolsRestoreDir>
+        </PropertyGroup>
+
+        <Message Importance="high" Condition="'$(_DotGameToolsMissing)' == 'true'"
+                          Text="Restoring DotGame's content tools for $(DotGameBuildRuntimeIdentifier) ($(_DotGameToolsVersion))" />
+
+        <!--
+            The same global properties from every project in a build, so MSBuild restores once per obj
+            folder even when a project's target frameworks build in parallel. The restore inherits the
+            game's settings: its folder for NuGet.config, and any sources or packages folder it sets.
+        -->
+        <MSBuild Condition="'$(_DotGameToolsMissing)' == 'true'"
+                          Projects="$(MSBuildThisFileDirectory)RestoreTools.proj"
+                          Targets="Restore"
+                          Properties="DotGameToolsPackage=$(_DotGameToolsPackage);DotGameToolsVersion=$(_DotGameToolsVersion);DotGameToolsRestoreDir=$(_DotGameToolsRestoreDir);RestoreRootConfigDirectory=$(MSBuildProjectDirectory);RestorePackagesPath=$(_DotGamePackages);RestoreSources=$(RestoreSources);RestoreAdditionalProjectSources=$(RestoreAdditionalProjectSources);RestoreConfigFile=$(RestoreConfigFile);_DotGameToolsRestore=true" />
+
+        <Error Code="DGBUILD0002"
+                      Condition="'$(_DotGameToolsMissing)' == 'true' and !Exists('$(DotGameToolsDir)')"
+                      Text="DotGame's content tools for $(DotGameBuildRuntimeIdentifier) (version $(_DotGameToolsVersion)) couldn't be restored to NuGet's packages folder ($(_DotGamePackages)). Check that the project's package sources include the DotGame packages, then restore again." />
+    </Target>
+
+</Project>

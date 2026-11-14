@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk.WebAssembly">
+
+    <!-- The web: WebGL 2 and WebAssembly. Needs the wasm-tools workload. -->
+    <PropertyGroup>
+        <TargetFramework>net11.0</TargetFramework>
+        <RuntimeIdentifier>browser-wasm</RuntimeIdentifier>
+        <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
+        <RootNamespace>Sample</RootNamespace>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+        <RunAOTCompilation>true</RunAOTCompilation>
+        <WasmStripILAfterAOT>true</WasmStripILAfterAOT>
+        <WasmEnableSIMD>true</WasmEnableSIMD>
+        <WasmEnableExceptionHandling>true</WasmEnableExceptionHandling>
+    </PropertyGroup>
+
+    <!-- The game's code, shared by every platform: a shared project, compiled into each platform's -->
+    <Import Project="..\shared\DotGame.Framework.Sample.projitems" Label="Shared" />
+
+    <!-- The launch screen, which the content pipeline makes into this platform's form -->
+    <ItemGroup Label="Launch screen">
+        <LaunchScreen Include="..\Content\LaunchScreen\logo.png" Background="#181c28" LogoSize="140" />
+    </ItemGroup>
+
+    <ItemGroup Label="Content">
+        <TextureContent Include="..\Content\Textures\*.png">
+            <LinkBase>wwwroot\Content\Textures</LinkBase>
+        </TextureContent>
+        <SoundContent Include="..\Content\Sound\*.wav">
+            <LinkBase>wwwroot\Content\Sound</LinkBase>
+        </SoundContent>
+        <MusicContent Include="..\Content\Music\*.wav">
+            <LinkBase>wwwroot\Content\Music</LinkBase>
+        </MusicContent>
+        <ShaderContent Include="..\Content\Shaders\*.slang">
+            <LinkBase>wwwroot\Content\Shaders</LinkBase>
+        </ShaderContent>
+        <DataContent Include="..\Content\Data\*.*">
+            <LinkBase>wwwroot\Content\Data</LinkBase>
+        </DataContent>
+    </ItemGroup>
+
+</Project>

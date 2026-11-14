@@ -1,0 +1,40 @@
+From 568891b2e4a55955bc54564aa9332ea6c2f0e76e Mon Sep 17 00:00:00 2001
+From: DotGame contributors <dotgame@users.noreply.github.com>
+Date: Sat, 7 Nov 2026 18:49:54 -0500
+Subject: [PATCH 2/2] nir: build all of NIR when spirv-to-dxil is enabled
+
+With -Dspirv-to-dxil=true and no Gallium or Vulkan driver,
+with_gfx_compute is false, so only NIR's headers were built and
+spirv2dxil failed to link. spirv-to-dxil is already in the list of
+users that need the full library; it was only reached when a graphics
+or compute driver was enabled too.
+---
+ src/compiler/nir/meson.build | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/src/compiler/nir/meson.build b/src/compiler/nir/meson.build
+index 1218a50..245be52 100644
+--- a/src/compiler/nir/meson.build
++++ b/src/compiler/nir/meson.build
+@@ -78,7 +78,8 @@ nir_intrinsics_c = custom_target(
+   depend_files : files('nir_intrinsics.py'),
+ )
+ 
+-with_nir_headers_only = not with_gfx_compute or (
++# spirv-to-dxil needs all of NIR, also when it's the only part being built
++with_nir_headers_only = not with_spirv_to_dxil and (not with_gfx_compute or (
+   gallium_drivers == ['d3d12'] and
+   get_option('gallium-d3d12-graphics').disabled() and
+   not [
+@@ -92,7 +93,7 @@ with_nir_headers_only = not with_gfx_compute or (
+     with_drivers_clc,
+     get_option('intel-elk'),
+     with_tools.length() != 0,
+-  ].contains(true))
++  ].contains(true)))
+ 
+ files_libnir = []
+ if with_nir_headers_only
+-- 
+2.54.0 (Apple Git-157)
+

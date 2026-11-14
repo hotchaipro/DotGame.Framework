@@ -1,0 +1,35 @@
+#nullable enable
+DotGame.Framework.Desktop.DesktopGameEngine
+DotGame.Framework.Desktop.DesktopGameEngine.DesktopGameEngine(DotGame.Framework.Desktop.DesktopGameEngine.Options! options) -> void
+DotGame.Framework.Desktop.DesktopGameEngine.Initialized -> System.EventHandler?
+DotGame.Framework.Desktop.DesktopGameEngine.NativeWindow.get -> nint
+DotGame.Framework.Desktop.DesktopGameEngine.Options
+DotGame.Framework.Desktop.DesktopGameEngine.Options.GraphicsDebug.get -> bool
+DotGame.Framework.Desktop.DesktopGameEngine.Options.GraphicsDebug.set -> void
+DotGame.Framework.Desktop.DesktopGameEngine.Options.Options() -> void
+DotGame.Framework.Desktop.DesktopGameEngine.Options.PresentMode.get -> DotGame.Framework.Desktop.PresentMode
+DotGame.Framework.Desktop.DesktopGameEngine.Options.PresentMode.set -> void
+DotGame.Framework.Desktop.DesktopGameEngine.Options.RememberWindow.get -> bool
+DotGame.Framework.Desktop.DesktopGameEngine.Options.RememberWindow.set -> void
+DotGame.Framework.Desktop.DesktopGameEngine.Options.Title.get -> string!
+DotGame.Framework.Desktop.DesktopGameEngine.Options.Title.set -> void
+DotGame.Framework.Desktop.DesktopGameEngine.Options.WindowMode.get -> DotGame.Framework.Desktop.WindowMode
+DotGame.Framework.Desktop.DesktopGameEngine.Options.WindowMode.set -> void
+DotGame.Framework.Desktop.DesktopGameEngine.Options.WindowSize.get -> DotGame.Framework.Desktop.WindowSize!
+DotGame.Framework.Desktop.DesktopGameEngine.Options.WindowSize.set -> void
+DotGame.Framework.Desktop.DesktopGameEngine.RunAsync(DotGame.Framework.Game! game) -> System.Threading.Tasks.Task!
+DotGame.Framework.Desktop.DesktopGameEngine.Stop() -> void
+DotGame.Framework.Desktop.DesktopGameEngine.WindowMode.get -> DotGame.Framework.Desktop.WindowMode
+DotGame.Framework.Desktop.DesktopGameEngine.WindowMode.set -> void
+DotGame.Framework.Desktop.PresentMode
+DotGame.Framework.Desktop.PresentMode.Immediate = 2 -> DotGame.Framework.Desktop.PresentMode
+DotGame.Framework.Desktop.PresentMode.Mailbox = 1 -> DotGame.Framework.Desktop.PresentMode
+DotGame.Framework.Desktop.PresentMode.VSync = 0 -> DotGame.Framework.Desktop.PresentMode
+DotGame.Framework.Desktop.WindowMode
+DotGame.Framework.Desktop.WindowMode.FullScreen = 2 -> DotGame.Framework.Desktop.WindowMode
+DotGame.Framework.Desktop.WindowMode.Maximized = 1 -> DotGame.Framework.Desktop.WindowMode
+DotGame.Framework.Desktop.WindowMode.Windowed = 0 -> DotGame.Framework.Desktop.WindowMode
+DotGame.Framework.Desktop.WindowSize
+static DotGame.Framework.Desktop.DesktopGameEngine.ResetWindow() -> void
+static DotGame.Framework.Desktop.WindowSize.Default.get -> DotGame.Framework.Desktop.WindowSize!
+static DotGame.Framework.Desktop.WindowSize.Fit(float aspectRatio, int maxScreenPercent = 100, DotGame.Framework.Vector2Int? maxSize = null) -> DotGame.Framework.Desktop.WindowSize!

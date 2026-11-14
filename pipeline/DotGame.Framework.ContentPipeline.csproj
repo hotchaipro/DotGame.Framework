@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.Build.NoTargets/3.7.134">
+
+    <!--
+        DotGame framework content pipeline: MSBuild targets and the default
+        sprite shader.  Nothing is compiled here; the content processors are
+        commands of the DotGame.Framework.ContentPipeline.BuildTool tool
+        (tool\), which the targets build on demand.  Game projects reference
+        this project and import
+        build\DotGame.Framework.ContentPipeline.targets.
+    -->
+
+    <PropertyGroup>
+        <TargetFramework>net11.0</TargetFramework>
+        <IsPackable>false</IsPackable>
+        <!-- The task project in tasks\ and the build tool in tool\ are projects of their own, built on demand by the targets -->
+        <DefaultItemExcludes>$(DefaultItemExcludes);tasks\**;tool\**</DefaultItemExcludes>
+    </PropertyGroup>
+
+    <!--
+        NoTargets defaults ReferenceOutputAssembly to false, which also drops the
+        reference from NuGet restore.  Setting it to true lets the libraries flow
+        transitively to game projects, like package dependencies will.
+    -->
+    <ItemGroup>
+        <ProjectReference Include="..\framework\DotGame.Framework.csproj" ReferenceOutputAssembly="true" />
+    </ItemGroup>
+
+</Project>

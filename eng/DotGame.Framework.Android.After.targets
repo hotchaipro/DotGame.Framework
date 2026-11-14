@@ -1,0 +1,15 @@
+<Project>
+    <!--
+        Built for a game (DotGameBuildRoot), in the Android SDK's per-RID inner build of that game:
+        the SDK passes the game's OutputPath to its references as _OuterOutputPath, and its
+        AssemblyResolution targets set this project's OutputPath and OutDir to it, after TargetDir and
+        TargetPath were computed. The path is relative, so this project's build output was copied into
+        its own folder in DotGame (where two games' builds collide), although the game takes it
+        from TargetPath, under the game. OutDir is put back to TargetDir, so the copy lands there.
+    -->
+    <PropertyGroup Condition="'$(DotGameBuildRoot)' != '' and '$(_ComputeFilesToPublishForRuntimeIdentifiers)' == 'true' and '$(_OuterOutputPath)' != ''">
+        <OutputPath>$(TargetDir)</OutputPath>
+        <OutDir>$(TargetDir)</OutDir>
+        <PublishDir>$(TargetDir)</PublishDir>
+    </PropertyGroup>
+</Project>

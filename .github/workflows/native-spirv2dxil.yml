@@ -1,0 +1,120 @@
+name: spirv2dxil
+
+# Builds Mesa's spirv2dxil (native/spirv2dxil/build.ps1), the content pipeline's
+# SPIR-V to DXIL converter, on each of the five build machines and commits the
+# binaries to native/spirv2dxil/<rid>/. Each machine builds its own: no
+# cross-compiling. Runs only when the Mesa pin, patches or this workflow change,
+# or manually. The committed binaries are outside the trigger paths, and pushes
+# made with GITHUB_TOKEN don't trigger workflows, so the commit doesn't re-run this.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'native/spirv2dxil/build.ps1'
+      - 'native/spirv2dxil/patches/**'
+      - '.github/workflows/native-spirv2dxil.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+            msvc: x64
+          - os: windows-11-arm
+            rid: win-arm64
+            msvc: arm64
+          # The oldest supported Ubuntu, so the binaries run on older glibc versions
+          - os: ubuntu-22.04
+            rid: linux-x64
+          - os: ubuntu-22.04-arm
+            rid: linux-arm64
+          - os: macos-latest
+            rid: osx-arm64
+
+    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.rid }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up MSVC
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.msvc }}
+
+      - name: Cache Mesa's clone
+        uses: actions/cache@v4
+        with:
+          path: native/spirv2dxil/build/mesa
+          key: mesa-${{ matrix.rid }}-${{ hashFiles('native/spirv2dxil/build.ps1') }}
+
+      - name: Build spirv2dxil
+        shell: pwsh
+        run: ./native/spirv2dxil/build.ps1 -Python python
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: spirv2dxil-${{ matrix.rid }}
+          path: native/spirv2dxil/${{ matrix.rid }}/
+          if-no-files-found: error
+
+  commit:
+    needs: build
+    runs-on: ubuntu-latest
+    name: Commit binaries
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: spirv2dxil-*
+          path: staging/
+
+      # Artifacts don't keep the execute bit: git records it, so the tool runs from a clone
+      - name: Copy binaries to native/spirv2dxil/
+        shell: pwsh
+        run: |
+          foreach ($dir in Get-ChildItem -Path staging -Directory) {
+            $rid = $dir.Name -replace '^spirv2dxil-', ''
+            $targetDir = "native/spirv2dxil/$rid"
+            Write-Host "Copying $($dir.Name) -> $targetDir"
+            New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
+            Copy-Item -Path "$($dir.FullName)/*" -Destination $targetDir -Force
+            foreach ($file in Get-ChildItem $targetDir -File) { chmod +x $file.FullName }
+            git add $targetDir
+          }
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git diff --cached --quiet && echo "No changes to commit" && exit 0
+          git commit -m "Update spirv2dxil binaries"
+          git pull --rebase
+          git push

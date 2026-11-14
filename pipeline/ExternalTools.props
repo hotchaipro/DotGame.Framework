@@ -1,0 +1,85 @@
+<Project>
+
+    <!--
+        ExternalTools.props
+
+        Resolves paths to external build tools used by the content pipeline
+        and default shader compilation.
+
+        All tools default to bare executable names for PATH resolution.
+        Vulkan SDK tools are detected automatically from the VULKAN_SDK
+        environment variable when it is set.
+
+        Overridable properties (raw executable path):
+
+            AstcEncExe         Path to Arm's astcenc ASTC encoder.
+            SlangCExe          Path to the slangc compiler.
+            SpirvCrossExe      Path to the spirv-cross tool.
+            Spirv2DxilExe      Path to Mesa's spirv2dxil (SPIR-V to DXIL).
+
+        Pre-quoted properties for use in command templates:
+
+            AstcEncPath        "$(AstcEncExe)"  – use in Exec commands.
+            SlangCPath         "$(SlangCExe)"  – use in Exec commands.
+            SpirvCrossPath     "$(SpirvCrossExe)"  – use in Exec commands.
+            Spirv2DxilPath     "$(Spirv2DxilExe)"  – use in Exec commands.
+
+        Set the *Exe properties in Directory.Build.props, environment
+        variables, or on the command line (e.g. -p:AstcEncExe=…).
+    -->
+
+    <PropertyGroup Condition="'$(_ExternalToolsImported)' != 'true'">
+        <_ExternalToolsImported>true</_ExternalToolsImported>
+
+        <!-- Executable extension: .exe on Windows, empty on macOS/Linux -->
+        <_ExeExt Condition="$([MSBuild]::IsOSPlatform('Windows'))">.exe</_ExeExt>
+        <_ExeExt Condition="'$(_ExeExt)' == ''"></_ExeExt>
+
+        <!-- ── astcenc (Arm's ASTC encoder, Apache 2.0) ──
+                  Encodes lossy textures as ASTC for Android and iOS, whose GPUs sample
+                  it compressed.  Its release archives name the executable for the
+                  instruction set it uses: astcenc-avx2 (also -sse4.1, -sse2) on x64,
+                  astcenc-neon on Arm Linux and Windows, and astcenc (universal) on
+                  macOS.  Its output is the same on every one (Arm builds it
+                  invariant across instruction sets), so machines share cache entries.
+                  The install scripts put the release on PATH.
+        -->
+        <AstcEncExe Condition="'$(AstcEncExe)' == '' and $([MSBuild]::IsOSPlatform('OSX'))">astcenc</AstcEncExe>
+        <AstcEncExe Condition="'$(AstcEncExe)' == '' and '$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'Arm64'">astcenc-neon$(_ExeExt)</AstcEncExe>
+        <AstcEncExe Condition="'$(AstcEncExe)' == ''">astcenc-avx2$(_ExeExt)</AstcEncExe>
+        <AstcEncPath>&quot;$(AstcEncExe)&quot;</AstcEncPath>
+
+        <!-- ── Vulkan SDK tools ── -->
+        <!-- Auto-detect from VULKAN_SDK environment variable (the SDK uses Bin on Windows, bin on macOS and Linux) -->
+        <_VulkanSdkBinDir Condition="'$(VULKAN_SDK)' != '' and Exists('$(VULKAN_SDK)/Bin')">$(VULKAN_SDK)/Bin</_VulkanSdkBinDir>
+        <_VulkanSdkBinDir Condition="'$(VULKAN_SDK)' != '' and '$(_VulkanSdkBinDir)' == ''">$(VULKAN_SDK)/bin</_VulkanSdkBinDir>
+
+        <!-- slangc -->
+        <SlangCExe Condition="'$(SlangCExe)' == '' and '$(_VulkanSdkBinDir)' != ''">$(_VulkanSdkBinDir)/slangc$(_ExeExt)</SlangCExe>
+        <SlangCExe Condition="'$(SlangCExe)' == ''">slangc$(_ExeExt)</SlangCExe>
+        <SlangCPath>&quot;$(SlangCExe)&quot;</SlangCPath>
+
+        <!-- spirv-cross -->
+        <SpirvCrossExe Condition="'$(SpirvCrossExe)' == '' and '$(_VulkanSdkBinDir)' != ''">$(_VulkanSdkBinDir)/spirv-cross$(_ExeExt)</SpirvCrossExe>
+        <SpirvCrossExe Condition="'$(SpirvCrossExe)' == ''">spirv-cross$(_ExeExt)</SpirvCrossExe>
+        <SpirvCrossPath>&quot;$(SpirvCrossExe)&quot;</SpirvCrossPath>
+
+        <!-- ── spirv2dxil (Mesa, MIT) ──
+                  Converts SPIR-V to DXIL for D3D12; the build tool then signs it with
+                  the container hash D3D12 checks. Built from Mesa by
+                  native/spirv2dxil/build.ps1 for each build machine and checked in
+                  under native/spirv2dxil/<rid>/, so it needs no install.
+        -->
+        <_Spirv2DxilOS Condition="$([MSBuild]::IsOSPlatform('Windows'))">win</_Spirv2DxilOS>
+        <_Spirv2DxilOS Condition="$([MSBuild]::IsOSPlatform('OSX'))">osx</_Spirv2DxilOS>
+        <_Spirv2DxilOS Condition="'$(_Spirv2DxilOS)' == ''">linux</_Spirv2DxilOS>
+        <_Spirv2DxilArch>x64</_Spirv2DxilArch>
+        <_Spirv2DxilArch Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'Arm64'">arm64</_Spirv2DxilArch>
+        <Spirv2DxilExe Condition="'$(Spirv2DxilExe)' == ''">$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../native/spirv2dxil/$(_Spirv2DxilOS)-$(_Spirv2DxilArch)/spirv2dxil$(_ExeExt)'))</Spirv2DxilExe>
+        <Spirv2DxilPath>&quot;$(Spirv2DxilExe)&quot;</Spirv2DxilPath>
+    </PropertyGroup>
+
+    <!-- The content pipeline build tool that runs the external tools above. -->
+    <Import Project="ContentPipeline.BuildTool.props" Condition="'$(_ContentPipelineBuildToolImported)' != 'true'" />
+
+</Project>

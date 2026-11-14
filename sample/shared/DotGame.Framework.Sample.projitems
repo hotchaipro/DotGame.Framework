@@ -1,0 +1,25 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <MSBuildAllProjects>$(MSBuildAllProjects);$(MSBuildThisFileFullPath)</MSBuildAllProjects>
+    <HasSharedItems>true</HasSharedItems>
+    <SharedGUID>c6b5c76a-76dd-4f5d-8041-9632ecb061c1</SharedGUID>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration">
+    <Import_RootNamespace>Sample</Import_RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)FrameworkSample.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Pages\AudioPage.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Pages\BlendingPage.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Pages\InputPage.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Pages\RenderTexturesPage.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Pages\ShadersPage.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Pages\SpritesPage.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Pages\TimeAndContentPage.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)PixelText.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)SampleOptions.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)SamplePage.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)SpriteSheet.cs" />
+  </ItemGroup>
+</Project>

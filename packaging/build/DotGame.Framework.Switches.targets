@@ -1,0 +1,40 @@
+<Project>
+
+    <!--
+        DotGame.Framework.Switches.targets
+
+        The framework's Debug behaviour, from the game's build: the framework ships one build, and these
+        runtime feature switches decide what a Debug build of it did. Each becomes a value in the game's
+        runtime configuration (runtimeconfig.json on desktop, the boot configuration on the web, the
+        app's own on Android and iOS), and the trimmer and AOT compilers take it as a constant, so in a
+        trimmed Release build the code behind a switch that's off is removed.
+
+        Properties (optional, true or false):
+            DotGameDebug       The framework's self-checks, a fatal audio failure, a break into the
+                                                  debugger on a fatal error, and a desktop window that doesn't remember its
+                                                  place. Default: true in the Debug configuration.
+            DotGameTraceInput  Traces of input events. Default: as DotGameDebug.
+            DotGameTraceAudio  Traces of sounds and music. Default: as DotGameDebug.
+
+        For example, to chase an audio problem in a Release build:
+            dotnet build -c Release -p:DotGameTraceAudio=true
+
+        Imported by DotGame.Framework.targets for a game, and by DotGame's own test projects
+        for its tests and samples: a .targets file, so the game's Configuration is known.
+    -->
+
+    <PropertyGroup>
+        <_DotGameSwitchesImported>true</_DotGameSwitchesImported>
+        <DotGameDebug Condition="'$(DotGameDebug)' == '' and '$(Configuration)' == 'Debug'">true</DotGameDebug>
+        <DotGameDebug Condition="'$(DotGameDebug)' == ''">false</DotGameDebug>
+        <DotGameTraceInput Condition="'$(DotGameTraceInput)' == ''">$(DotGameDebug)</DotGameTraceInput>
+        <DotGameTraceAudio Condition="'$(DotGameTraceAudio)' == ''">$(DotGameDebug)</DotGameTraceAudio>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <RuntimeHostConfigurationOption Include="DotGame.Debug" Value="$(DotGameDebug)" Trim="true" />
+        <RuntimeHostConfigurationOption Include="DotGame.TraceInput" Value="$(DotGameTraceInput)" Trim="true" />
+        <RuntimeHostConfigurationOption Include="DotGame.TraceAudio" Value="$(DotGameTraceAudio)" Trim="true" />
+    </ItemGroup>
+
+</Project>

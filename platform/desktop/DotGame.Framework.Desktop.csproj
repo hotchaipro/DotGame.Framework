@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net11.0</TargetFramework>
+        <OutputType>Library</OutputType>
+        <IsAotCompatible>true</IsAotCompatible>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\framework\DotGame.Framework.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="SDL3-CS" Version="$(Sdl3CsVersion)" Aliases="Sdl" />
+    </ItemGroup>
+
+    <PropertyGroup>
+            <DefaultShaderTarget>spirv</DefaultShaderTarget>
+            <DefaultShaderNamespace>DotGame.Framework.Desktop.Graphics</DefaultShaderNamespace>
+        </PropertyGroup>
+
+    <!-- Decodes audio in managed code, with DotGame.AudioCodecs (see the shared project) -->
+    <PropertyGroup>
+        <DotGameManagedAudioDecoding>true</DotGameManagedAudioDecoding>
+    </PropertyGroup>
+    <Import Project="..\shared\DotGame.Framework.Platform.Common.projitems" Label="Shared" />
+    <Import Project="..\shared\DefaultShaders.targets" />
+    <Import Project="..\..\eng\SDL3.Native.targets" />
+
+    <Import Project="..\..\eng\DotGame.PublicApi.props" />
+</Project>

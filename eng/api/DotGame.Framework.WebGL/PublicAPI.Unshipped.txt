@@ -1,0 +1,8 @@
+#nullable enable
+DotGame.Framework.WebGL.WebGLGameEngine
+DotGame.Framework.WebGL.WebGLGameEngine.Options
+DotGame.Framework.WebGL.WebGLGameEngine.Options.CanvasElementId.get -> string!
+DotGame.Framework.WebGL.WebGLGameEngine.Options.CanvasElementId.set -> void
+DotGame.Framework.WebGL.WebGLGameEngine.Options.Options() -> void
+DotGame.Framework.WebGL.WebGLGameEngine.RunAsync(DotGame.Framework.Game! game) -> System.Threading.Tasks.Task!
+DotGame.Framework.WebGL.WebGLGameEngine.WebGLGameEngine(DotGame.Framework.WebGL.WebGLGameEngine.Options? options = null) -> void

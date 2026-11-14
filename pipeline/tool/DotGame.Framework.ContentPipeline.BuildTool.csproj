@@ -1,0 +1,61 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+        DotGame.Framework.ContentPipeline.BuildTool: the command-line tool that
+        builds the framework content types (textures, shaders, sounds and music)
+        and the default sprite shader.  Invoked through the content processor
+        command templates in ..\ContentPipeline.<platform>.targets and by
+        ..\..\platform\shared\DefaultShaders.targets, which build this
+        project on demand (see ..\ContentPipeline.BuildTool.props); run it
+        without arguments for usage.
+
+        Other content pipelines' build tools reference this project and
+        reuses its public helpers (command-line parsing, logging, external
+        processes, PNG reading and writing), so keep that surface stable.
+
+        Increment the version of a content type in ContentVersions.props when a
+        change can change its output; the version is part of its content cache
+        key.
+
+        The tool is fully trimmable and Native AOT compatible: IsAotCompatible
+        enables the trim, AOT and single-file analyzers, so code that would break
+        under trimming or AOT is flagged at build time.  Avoid reflection,
+        reflection-based serialization and runtime code generation.
+    -->
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net11.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <IsPackable>false</IsPackable>
+        <IsAotCompatible>true</IsAotCompatible>
+        <InvariantGlobalization>true</InvariantGlobalization>
+        <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+        <!-- Run with 'dotnet <tool>.dll' (or as a native AOT executable), so no app host is needed. -->
+        <UseAppHost>false</UseAppHost>
+        <!-- Run on the newest installed runtime when .NET 10 itself is not installed. -->
+        <RollForward>Major</RollForward>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="DotGame.Framework.ContentPipeline.Tests" />
+    </ItemGroup>
+
+    <!--
+        PNG and JPEG texture sources are read, and intermediate PNGs written, with the imaging library that
+        games decode images with at run time, so a source's pixels are the ones a game reads
+        (Graphics/RgbaImage.cs).
+    -->
+    <ItemGroup>
+        <PackageReference Include="DotGame.Imaging" Version="$(DotGameImagingVersion)" />
+    </ItemGroup>
+
+    <!--
+        Audio sources are read, and sounds and music encoded, with the codecs desktop and Android decode
+        them with (DotGame.AudioCodecs), so a source decodes to the same samples in the build as on a
+        device (Audio/AudioReader.cs, Audio/AudioEncoder.cs).
+    -->
+    <Import Project="..\..\eng\DotGame.AudioCodecs.targets" />
+
+</Project>
