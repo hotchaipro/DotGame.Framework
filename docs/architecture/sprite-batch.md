@@ -270,7 +270,7 @@ Android and iOS the service draws the active batch's waiting sprites before a di
 ## Statistics
 
 Each platform counts draw calls and sprites where it issues its draws (`GameHost.CountDraws`), so the
-stats overlay's `BAT` line (`DiagnosticsService.StatsOverlayMode = Detailed`) shows how a frame
+stats overlay's `DRAW CALLS` line (`DiagnosticsService.StatsOverlayMode = Detailed`) shows how a frame
 batches on any platform.
 
 ## Why this design

@@ -212,6 +212,10 @@ def images():
     sheet.save(path('Textures', 'spritesheet.png'), optimize=True)
     # The character on its own, an odd size
     character(211, 237).save(path('Textures', 'character.png'), optimize=True)
+    logo()
+
+
+def logo():
     # The launch screen's logo: a play symbol in a rounded square, with a soft gradient
     W = 512 * SS
     y = np.linspace(0, 1, W)[:, None] * np.ones((1, W))
@@ -222,9 +226,6 @@ def images():
     d = ImageDraw.Draw(logo)
     c = W / 2
     d.polygon([(c - W * 0.14, c - W * 0.2), (c - W * 0.14, c + W * 0.2), (c + W * 0.22, c)], fill=(255, 255, 255, 255))
-    for k, (dx, dy) in enumerate(((-0.27, -0.25), (0.27, 0.25), (0.27, -0.25))):
-        r = W * 0.035
-        d.ellipse([c + dx * W - r, c + dy * W - r, c + dx * W + r, c + dy * W + r], fill=(255, 255, 255, 170))
     logo.resize((512, 512), Image.LANCZOS).save(path('LaunchScreen', 'logo.png'), optimize=True)
 
 

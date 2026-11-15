@@ -30,10 +30,13 @@ public enum StatsOverlayMode
     FpsOnly = 1,
 
     /// <summary>
-    /// Four-line on-screen overlay showing FPS, update time
-    /// (framework/app), draw time (framework/app), and GPU draw calls
-    /// and sprites per frame. Carries the full bracket-based measurement
-    /// cost on every framework call site.
+    /// Six-line on-screen overlay showing FPS against the game's target
+    /// rate, update and draw time split into the framework's (cyan) and
+    /// the game's (violet), the frames that missed the target, the game
+    /// thread's share of each frame (CPU), and GPU draw calls and sprites
+    /// per frame, with FPS, dropped frames and CPU colored green, yellow or
+    /// red. Carries the full bracket-based measurement cost on every
+    /// framework call site.
     /// </summary>
     Detailed = 2,
 }

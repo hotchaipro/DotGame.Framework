@@ -25,8 +25,16 @@ internal readonly struct StatsSnapshot
         float drawFrameworkMs,
         float drawAppMs,
         float drawCalls,
-        float sprites)
+        float sprites,
+        float displayHz,
+        float targetHz,
+        int droppedFrames,
+        float cpuPercent)
     {
+        this.DisplayHz = displayHz;
+        this.TargetHz = targetHz;
+        this.DroppedFrames = droppedFrames;
+        this.CpuPercent = cpuPercent;
         this.Fps = fps;
         this.FrameMs = frameMs;
         this.WorstFrameMs = worstFrameMs;
@@ -72,4 +80,28 @@ internal readonly struct StatsSnapshot
 
     /// <summary>Smoothed sprites drawn per frame.</summary>
     public float Sprites { get; }
+
+    /// <summary>
+    /// The display's refresh rate, which a game at full speed matches: as the platform reports
+    /// it, or estimated from the frames when it can't tell.
+    /// </summary>
+    public float DisplayHz { get; }
+
+    /// <summary>
+    /// The frame rate the game aims for, which FPS is judged by: the display's, or the game's
+    /// preferred rate (<see cref="Game.PreferredFrameRate"/>) when it's lower.
+    /// </summary>
+    public float TargetHz { get; }
+
+    /// <summary>
+    /// The frames in the window that missed the target: took half a refresh interval longer than
+    /// the refreshes a frame at the target rate spans.
+    /// </summary>
+    public int DroppedFrames { get; }
+
+    /// <summary>
+    /// Update and draw time, the CPU's work, as a percentage of a frame at the target rate: at 100
+    /// the game can't finish a frame in the time it has.
+    /// </summary>
+    public float CpuPercent { get; }
 }

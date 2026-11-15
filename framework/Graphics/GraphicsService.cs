@@ -39,6 +39,7 @@ public sealed class GraphicsService
         int? frameRate)
     {
         this.Strategy.Interface.PreferredFrameRate = frameRate;
+        StatsCollector.SetPreferredFrameRate(frameRate);
     }
 
     internal void RaiseDeviceReset()

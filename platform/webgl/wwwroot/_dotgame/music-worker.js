@@ -727,7 +727,7 @@ class TrackStreamer {
 
                 let page;
                 let finished = false;
-                while (!finished && (page = demuxer.readPage()) !== null) {
+                while (!finished && !this._closed && (page = demuxer.readPage()) !== null) {
                     if (this._pass === 1) {
                         this._recordOggPage(page, previousGranule);
                     }
@@ -790,6 +790,14 @@ class TrackStreamer {
 
                         if (this._outstandingFrames() >= this._highWaterFrames) {
                             await this._awaitCapacity();
+
+                            // close() releases this wait after closing the
+                            // decoder: the next packet's decode() would throw
+                            // on it, on every stop while the audio thread is
+                            // full, so the rest of the page is left
+                            if (this._closed) {
+                                break;
+                            }
                         }
                     }
 

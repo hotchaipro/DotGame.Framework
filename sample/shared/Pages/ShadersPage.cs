@@ -17,8 +17,8 @@ namespace Sample.Pages;
 /// <remarks>
 /// Every sprite here is a different one from the sprite sheet, with its own wave, yet they're
 /// drawn in one batch, and one draw call, as they share the sheet's texture and the shader:
-/// turn on the detailed stats overlay (F1, twice) to see the draw calls per frame. A shader's
-/// parameters apply to the whole batch; per-sprite data is what lets sprites with different
+/// turn on the detailed stats overlay (press ` (backtick) twice) to see the draw calls per
+/// frame. A shader's parameters apply to the whole batch; per-sprite data is what lets sprites with different
 /// settings share it.
 /// </remarks>
 internal sealed class ShadersPage : SamplePage
@@ -38,7 +38,7 @@ internal sealed class ShadersPage : SamplePage
 
     public override string Title => "Shaders";
 
-    public override string Hint => "Each sprite's wave is its shader data: one draw. F1: stats.";
+    public override string Hint => "Each sprite's wave is its shader data: one draw. Press ` (backtick) for stats.";
 
     public override async Task Load()
     {

@@ -24,8 +24,9 @@ namespace Sample;
 /// <c>iOSGameEngine</c>, <c>WebGLGameEngine</c>) runs it; see each platform's project.
 /// </para>
 /// <para>
-/// Move between pages with the arrows at the top, Tab and Shift+Tab, or the number keys. F1
-/// cycles the stats overlay.
+/// Move between pages with the arrows at the top, Tab and Shift+Tab, or the number keys. Press `
+/// (backtick, left of 1) for stats: unlike F1, which a browser keeps for its help, no browser or
+/// system uses it, and it needs no Fn key on a Mac laptop.
 /// </para>
 /// </remarks>
 internal sealed class FrameworkSample : Game
@@ -176,11 +177,12 @@ internal sealed class FrameworkSample : Game
                     this.ShowPage(this._pageIndex + (((e.Modifiers & ModifierKeys.Shift) != 0) ? -1 : 1));
                     return;
 
-                case >= Key.D1 and <= Key.D6:
+                // 1 to 9 for the pages, as many as there are
+                case >= Key.D1 and <= Key.D9 when (e.Key - Key.D1) < this._pages.Count:
                     this.ShowPage(e.Key - Key.D1);
                     return;
 
-                case Key.F1:
+                case Key.Grave:
                     this.CycleStatsOverlay();
                     return;
             }

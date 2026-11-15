@@ -25,7 +25,7 @@ dotnet run --project sample/desktop/DotGame.Framework.Sample.Desktop.csproj
 ```
 
 Or open `DotGame.Framework.slnx`, which has the sample under `sample`. Move between pages with the arrows at the
-top, Tab and Shift+Tab, or the number keys; F1 cycles the stats overlay.
+top, Tab and Shift+Tab, or the number keys; press `` ` `` (backtick) for stats.
 
 ## Layout
 

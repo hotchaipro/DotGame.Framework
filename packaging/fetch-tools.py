@@ -81,7 +81,10 @@ if license:
 def checkout(name, repository, commit):
     # Outside the repository: CMake's Visual Studio probe runs MSBuild, which would pick up its Directory.Build files
     src = os.path.join(tempfile.gettempdir(), f"dotgame-{name}-{commit[:12]}")
-    if not os.path.isdir(os.path.join(src, ".git")):
+    # A clone an earlier run left is used only if it has the commit: one stopped while fetching is made again
+    has_commit = os.path.isdir(os.path.join(src, ".git")) and subprocess.run(
+        ["git", "-C", src, "cat-file", "-e", commit + "^{commit}"], capture_output=True).returncode == 0
+    if not has_commit:
         shutil.rmtree(src, ignore_errors=True)
         subprocess.run(["git", "init", "-q", src], check=True)
         subprocess.run(["git", "-C", src, "fetch", "-q", "--depth", "1", repository, commit], check=True)

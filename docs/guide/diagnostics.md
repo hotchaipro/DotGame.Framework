@@ -16,8 +16,35 @@ protected override Task OnStart()
 | Mode | What it shows |
 |---|---|
 | `Off` | Nothing |
-| `FpsOnly` | Frames per second |
-| `Detailed` | Frames per second, update and draw time split into framework and game, and draw calls and sprites per frame |
+| `FpsOnly` | Frames per second, colored against the display's refresh rate |
+| `Detailed` | Frames per second and the display's refresh rate, update and draw time split into framework (cyan) and game (violet), dropped frames, the game thread's share of each frame (CPU), and draw calls and sprites per frame |
+
+The numbers that say whether all is well are colored: green is good, yellow a warning, and red a
+problem.
+
+- **FPS** is judged by the game's target rate, which the detailed overlay gives beside it: the
+  display's refresh rate (`DISPLAY`), the most frames it can show, or the game's
+  [`PreferredFrameRate`](../api/Framework/Game.md#preferredframerate) when that's lower (`TARGET`).
+  It's green at the target, yellow under 95% of it and red under 75%.
+- **DROPPED** counts the last 60 frames that missed the target, taking half a refresh longer than a
+  frame at the target rate: each one is a stutter you can see. A frame shows for a whole number of
+  refreshes, so a target that doesn't divide into the display's rate, such as 50 on a 60 Hz display,
+  mixes frames of one and two refreshes, and those don't count. It's green at none and red at any.
+- **CPU** is the game thread's update and draw time as a share of a frame at the target rate. It's
+  green under 50%, yellow to 80%, and red above, as the game nears the point where it can't finish
+  a frame in the time it has. It isn't the CPU use the system shows, which is of every core, and
+  it's elapsed time, so a wait inside update or draw counts too.
+
+The overlay is drawn so that turning it on hardly changes what it shows: each frame draws it as one
+sprite, and its numbers are drawn again four times a second, if they've changed. Its own draw calls,
+sprites and time are left out of what it shows.
+
+Low FPS with a green `CPU` points at the GPU, whose time the overlay doesn't measure. The times are
+in milliseconds and averaged over the last 60 frames. The refresh rate is the one the platform
+reports; where it can't tell, as on the web, it's estimated from the times of the display's refreshes the
+frames were given, since the game started, the overlay on or off, so a game that slows later is still
+judged by the display. One that has never reached the display's rate, from its first frame, or that
+asks for a lower one, reads as a slower display.
 
 Draw calls and sprites per frame are the numbers to watch when you're
 [keeping draws cheap](graphics.md#keeping-draws-cheap).

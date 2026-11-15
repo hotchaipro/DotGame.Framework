@@ -195,6 +195,13 @@ when you're done with it.
 `Text` holds what's been committed, and `Composition` any text the player is still composing with an
 input method. Draw both.
 
+While a field has focus, the keys that type, and its Backspace, Enter and Escape, go to the field.
+Every other key, such as a function key, the arrows or a Ctrl shortcut, still comes to the game as a
+key event.
+
+On the web, the browser keeps the function keys for itself (F1 opens its help, F5 reloads), so a
+game's hotkey there works better on another key, such as `` ` `` (backtick, `Key.Grave`).
+
 ## See also
 
 - [`InputService`](../api/Framework/InputService.md), [`PointerEvent`](../api/Framework/PointerEvent.md),

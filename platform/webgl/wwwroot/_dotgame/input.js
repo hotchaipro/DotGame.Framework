@@ -126,26 +126,38 @@ export function initializeInput(traceInput) {
 
     // Keyboard events (global, not per-canvas - matches browser focus model).
     // Routing is bound to the active game instance by game.js's initialize.
-    // We only yield keys when the user is actively typing in a real
-    // editable element (input, textarea, contenteditable). This avoids
-    // fragile activeElement checks that race against the browser
+    // While the user is typing in a real editable element (input, textarea,
+    // contenteditable), the keys that type and the field's own keys are left
+    // to it, and the rest still reach the game, as on the other platforms.
+    // This avoids fragile activeElement checks that race against the browser
     // auto-blurring the focused element when Escape is pressed.
     _addSuppressibleListener('keydown', (e) => {
         _markUserGesture();
         const id = _getKeyInstanceId();
-        if (id >= 0 && !isEditableElement(document.activeElement)) {
+        if (id < 0) {
+            return;
+        }
+        if (!isEditableElement(document.activeElement)) {
             if (_shouldPreventDefault(e)) {
                 e.preventDefault();
             }
+            inputBindings.OnKeyDown(id, e.code, _getModifierBits(e), e.repeat);
+        } else if (_isGameKeyWhileEditing(e)) {
+            // The field keeps the key's default (caret keys still move the caret)
             inputBindings.OnKeyDown(id, e.code, _getModifierBits(e), e.repeat);
         }
     });
     _addSuppressibleListener('keyup', (e) => {
         const id = _getKeyInstanceId();
-        if (id >= 0 && !isEditableElement(document.activeElement)) {
+        if (id < 0) {
+            return;
+        }
+        if (!isEditableElement(document.activeElement)) {
             if (_shouldPreventDefault(e)) {
                 e.preventDefault();
             }
+            inputBindings.OnKeyUp(id, e.code, _getModifierBits(e));
+        } else if (_isGameKeyWhileEditing(e)) {
             inputBindings.OnKeyUp(id, e.code, _getModifierBits(e));
         }
     });
@@ -402,6 +414,8 @@ function _getModifierBits(e) {
     return bits;
 }
 
+// The function keys are left to the browser (F5 reloads, F11 goes full screen, F12 opens the
+// developer tools; F1, its help, can't be kept from it in Chrome anyway)
 function _shouldPreventDefault(e) {
     if (e.ctrlKey || e.metaKey) return false;
     const code = e.code;
@@ -410,6 +424,17 @@ function _shouldPreventDefault(e) {
         if (n >= 1 && n <= 24) return false;
     }
     return true;
+}
+
+// Whether a key reaches the game while a text field has focus, as on the other platforms: any
+// key that doesn't type a character (with neither Ctrl nor Meta, a key whose value is one
+// character types), except the field's own Backspace, Enter and Escape, and none while an IME
+// is composing
+function _isGameKeyWhileEditing(e) {
+    if (e.isComposing) return false;
+    if (!e.ctrlKey && !e.metaKey && e.key && [...e.key].length === 1) return false;
+    const code = e.code;
+    return code !== 'Backspace' && code !== 'Enter' && code !== 'NumpadEnter' && code !== 'Escape';
 }
 
 // ---------------- Text input overlays ----------------

@@ -19,11 +19,135 @@ public sealed class StatsCollectorTests : IDisposable
     public StatsCollectorTests()
     {
         StatsCollector.SetMode(StatsOverlayMode.Off);
+        StatsCollector.ResetDisplayEstimate();
     }
 
     public void Dispose()
     {
         StatsCollector.SetMode(StatsOverlayMode.Off);
+        StatsCollector.SetDisplayRefreshRate(0);
+        StatsCollector.SetPreferredFrameRate(null);
+        StatsCollector.ResetDisplayEstimate();
+    }
+
+    [Fact]
+    public void AnUnreportedDisplayRate_IsEstimatedFromTheFrameTimestamps_AndKeptWhenTheGameSlows()
+    {
+        // A 48 Hz display the platform can't report, as on the web: a frame's timestamp is when
+        // its refresh began, so its interval is a whole number of refreshes. The game misses
+        // some, so most intervals are two or three refreshes, never less than one.
+        const double Refresh = 1000.0 / 48.0;
+        double time = 1000;
+        int[] refreshes = [1, 2, 2, 1, 3, 2, 1, 2];
+        for (int i = 0; i < 64; i++)
+        {
+            time += refreshes[i % refreshes.Length] * Refresh;
+            StatsCollector.RecordFrameTimestamp(TimeSpan.FromMilliseconds(time));
+        }
+
+        // Then the game slows to every other refresh for good
+        for (int i = 0; i < 200; i++)
+        {
+            time += 2 * Refresh;
+            StatsCollector.RecordFrameTimestamp(TimeSpan.FromMilliseconds(time));
+        }
+
+        StatsCollector.SetMode(StatsOverlayMode.FpsOnly);
+        Frame();
+        Publish();
+
+        Assert.Equal(48f, StatsCollector.Snapshot.DisplayHz, 0.01f);
+    }
+
+    [Fact]
+    public void AReportedDisplayRate_IsntEstimated()
+    {
+        StatsCollector.SetDisplayRefreshRate(60);
+        double time = 1000;
+        for (int i = 0; i < 64; i++)
+        {
+            time += 50;
+            StatsCollector.RecordFrameTimestamp(TimeSpan.FromMilliseconds(time));
+        }
+
+        StatsCollector.SetMode(StatsOverlayMode.FpsOnly);
+        Frame();
+        Publish();
+
+        Assert.Equal(60f, StatsCollector.Snapshot.DisplayHz, 0.01f);
+    }
+
+    [Fact]
+    public void APreferredRate_BelowTheDisplays_IsTheTarget()
+    {
+        // A 500 Hz display and a game that prefers 50: a frame has 20 ms, ten refreshes, and
+        // missed it past 21 ms
+        StatsCollector.SetDisplayRefreshRate(500);
+        StatsCollector.SetPreferredFrameRate(50);
+        StatsCollector.SetMode(StatsOverlayMode.Detailed);
+
+        Frame();
+        Frame(update: () => Thread.Sleep(4));
+        Publish();
+
+        var snapshot = StatsCollector.Snapshot;
+        Assert.Equal(500f, snapshot.DisplayHz);
+        Assert.Equal(50f, snapshot.TargetHz, 0.01f);
+        Assert.Equal(0, snapshot.DroppedFrames);
+
+        // 4 ms of update over two frames is about 2 ms a frame, a tenth of the target's 20
+        Assert.True(snapshot.CpuPercent < 50f);
+    }
+
+    [Fact]
+    public void Detailed_CountsTheFramesThatMissedTheDisplay_AndTheGameThreadsShareOfEachFrame()
+    {
+        // A 500 Hz display: a frame over 3 ms missed it, and 2 ms is a whole refresh interval
+        StatsCollector.SetDisplayRefreshRate(500);
+        StatsCollector.SetMode(StatsOverlayMode.Detailed);
+
+        Frame();
+        Frame(update: () => Thread.Sleep(20));
+        Publish();
+
+        var snapshot = StatsCollector.Snapshot;
+        Assert.Equal(500f, snapshot.DisplayHz);
+        Assert.Equal(1, snapshot.DroppedFrames);
+
+        // 20 ms of update over two frames is about 10 ms a frame, five refresh intervals
+        Assert.True(snapshot.CpuPercent > 400f);
+    }
+
+    [Fact]
+    public void TheOverlaysOwnTime_IsntAFrameDropped_ButStaysInTheFrame()
+    {
+        // A 500 Hz display: a frame over 3 ms missed it
+        StatsCollector.SetDisplayRefreshRate(500);
+        StatsCollector.SetMode(StatsOverlayMode.Detailed);
+
+        // A quick frame, then 20 ms of the overlay drawing itself after it
+        Frame();
+        long start = Stopwatch.GetTimestamp();
+        Thread.Sleep(20);
+        StatsCollector.ExcludeOverlayTime(Stopwatch.GetTimestamp() - start);
+        Publish();
+
+        var snapshot = StatsCollector.Snapshot;
+        Assert.Equal(0, snapshot.DroppedFrames);
+        Assert.True(snapshot.FrameMs >= 20f);
+    }
+
+    [Fact]
+    public void AnUnknownDisplayRate_IsEstimatedFromTheFrames()
+    {
+        StatsCollector.SetMode(StatsOverlayMode.FpsOnly);
+
+        Frame();
+        Publish();
+
+        var snapshot = StatsCollector.Snapshot;
+        Assert.Equal(1000f / snapshot.FrameMs, snapshot.DisplayHz, snapshot.DisplayHz * 1e-4f);
+        Assert.Equal(0, snapshot.DroppedFrames);
     }
 
     // A frame's work, published by the BeginUpdate of the next
@@ -137,7 +261,7 @@ public sealed class StatsCollectorTests : IDisposable
 
         Frame(drawCalls: 3, spritesPerDraw: 10);
         StatsCollector.CountDraw(5000);
-        StatsCollector.ExcludeOverlayDraw(5000);
+        StatsCollector.ExcludeOverlayDraw(1, 5000);
         Publish();
 
         Assert.Equal(3f, StatsCollector.Snapshot.DrawCalls);

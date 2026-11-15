@@ -371,6 +371,7 @@ internal sealed class GameHost
         // show
         bool isRunning = game.IsActiveState || game.RunWhenInactive || !this._hasDrawnFirstFrame;
 
+        StatsCollector.RecordFrameTimestamp(frameTimestamp);
         StatsCollector.BeginUpdate();
 
         if (isRunning)
@@ -461,6 +462,7 @@ internal sealed class GameHost
             || ((display.Dpi > 0f) && (display.Dpi != this._game.DisplayDpi));
 
         GameSynchronizationContext.GameThread.SetTargetFrameRate(display.RefreshRateHz);
+        StatsCollector.SetDisplayRefreshRate(display.RefreshRateHz);
         this._game.SetDisplay(display.ClientBounds, display.SafeAreaBounds, display.Dpi);
 
         if (!isChanged)
