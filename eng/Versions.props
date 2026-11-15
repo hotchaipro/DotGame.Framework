@@ -4,7 +4,7 @@
         <!-- DotGame.Imaging (PNG, JPEG and WebP): the content pipeline's build tool reads texture sources with it -->
         <DotGameImagingVersion>2.0.2</DotGameImagingVersion>
         <!-- DotGame.AudioCodecs (Opus, FLAC and WAV): desktop and Android decode sounds and music with it, and the build tool reads and encodes audio with it (eng/DotGame.AudioCodecs.targets) -->
-        <DotGameAudioCodecsVersion>0.1.0-preview.1</DotGameAudioCodecsVersion>
+        <DotGameAudioCodecsVersion>1.0.0</DotGameAudioCodecsVersion>
         <Sdl3CsVersion>3.4.20</Sdl3CsVersion>
         <XunitV3Version>4.0.3</XunitV3Version>
         <MicrosoftCodeAnalysisCSharpVersion>5.9.0</MicrosoftCodeAnalysisCSharpVersion>
