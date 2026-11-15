@@ -1,10 +1,10 @@
 name: SDL3 native libraries
 
-# Rebuilds the framework's native libraries (native/build.ps1) on each OS and
-# commits the binaries. Runs only when the native sources or build scripts
-# change (a submodule update changes the submodule path), or manually.
-# The committed binaries are outside the trigger paths, and pushes made with
-# GITHUB_TOKEN don't trigger workflows, so the commit doesn't re-run this.
+# Rebuilds the framework's native libraries (native/build.ps1) on each OS and commits the binaries.
+# Runs only when the native sources or build scripts change (a submodule update changes the
+# submodule path), or manually. It pushes the binaries to main with BINARIES_DEPLOY_KEY, a deploy
+# key that the main ruleset lets past its pull request rule. Such a push starts other workflows, but
+# not this one: the binaries are outside its trigger paths. The token it's given only reads.
 
 on:
   push:
@@ -17,7 +17,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -107,8 +107,11 @@ jobs:
     name: Commit binaries
 
     steps:
+      # With the deploy key, the push below gets past the main ruleset's pull request rule
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          ssh-key: ${{ secrets.BINARIES_DEPLOY_KEY }}
 
       - name: Download all artifacts
         uses: actions/download-artifact@v8

@@ -1,11 +1,12 @@
 name: spirv2dxil
 
-# Builds Mesa's spirv2dxil (native/spirv2dxil/build.ps1), the content pipeline's
-# SPIR-V to DXIL converter, on each of the five build machines and commits the
-# binaries to native/spirv2dxil/<rid>/. Each machine builds its own: no
-# cross-compiling. Runs only when the Mesa pin, patches or this workflow change,
-# or manually. The committed binaries are outside the trigger paths, and pushes
-# made with GITHUB_TOKEN don't trigger workflows, so the commit doesn't re-run this.
+# Builds Mesa's spirv2dxil (native/spirv2dxil/build.ps1), the content pipeline's SPIR-V to DXIL
+# converter, on each of the five build machines and commits the binaries to
+# native/spirv2dxil/<rid>/. Each machine builds its own: no cross-compiling. Runs only when the Mesa
+# pin, patches or this workflow change, or manually. It pushes the binaries to main with
+# BINARIES_DEPLOY_KEY, a deploy key that the main ruleset lets past its pull request rule. Such a
+# push starts other workflows, but not this one: the binaries are outside its trigger paths. The
+# token it's given only reads.
 
 on:
   push:
@@ -17,7 +18,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -84,8 +85,11 @@ jobs:
     name: Commit binaries
 
     steps:
+      # With the deploy key, the push below gets past the main ruleset's pull request rule
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          ssh-key: ${{ secrets.BINARIES_DEPLOY_KEY }}
 
       - name: Download all artifacts
         uses: actions/download-artifact@v8
