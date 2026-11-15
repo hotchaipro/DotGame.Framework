@@ -16,8 +16,8 @@
     <PropertyGroup>
         <ContentPipelineTextureVersion>2</ContentPipelineTextureVersion>
         <ContentPipelineShaderVersion>5</ContentPipelineShaderVersion>
-        <ContentPipelineSoundVersion>9</ContentPipelineSoundVersion>
-        <ContentPipelineMusicVersion>6</ContentPipelineMusicVersion>
+        <ContentPipelineSoundVersion>10</ContentPipelineSoundVersion>
+        <ContentPipelineMusicVersion>7</ContentPipelineMusicVersion>
     </PropertyGroup>
 
 </Project>
