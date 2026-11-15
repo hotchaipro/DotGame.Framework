@@ -296,8 +296,9 @@ if (!isWebGL2Supported()) {
 // with the final form (try_table) on a browser without it gets the runtime's assert, which
 // reportUnhandledError turns into this message too. Lockdown Mode on iOS and macOS turns
 // WebAssembly off. Say so plainly, as for WebGL 2, before downloading a runtime that would only fail.
+// Some browsers set WebAssembly to null instead of removing it (typeof null is 'object').
 function missingWasmFeature() {
-    if ((typeof WebAssembly !== 'object') || (typeof WebAssembly.validate !== 'function')) {
+    if ((typeof WebAssembly !== 'object') || (WebAssembly === null) || (typeof WebAssembly.validate !== 'function')) {
         return 'WebAssembly';
     }
     // v128.const and i8x16.splat, as dotnet.js's probe
