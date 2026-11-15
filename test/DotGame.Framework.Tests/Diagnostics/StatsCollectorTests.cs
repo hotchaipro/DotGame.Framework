@@ -80,10 +80,11 @@ public sealed class StatsCollectorTests : IDisposable
     [Fact]
     public void APreferredRate_BelowTheDisplays_IsTheTarget()
     {
-        // A 500 Hz display and a game that prefers 50: a frame has 20 ms, ten refreshes, and
-        // missed it past 21 ms
+        // A 500 Hz display and a game that prefers 10: a frame has 100 ms, 50 refreshes, and
+        // missed it past 101 ms. Without the preference, it would miss it past 3 ms. The frame
+        // sleeps 4 ms, which a Windows timer can stretch to 15 or more, so the target is long.
         StatsCollector.SetDisplayRefreshRate(500);
-        StatsCollector.SetPreferredFrameRate(50);
+        StatsCollector.SetPreferredFrameRate(10);
         StatsCollector.SetMode(StatsOverlayMode.Detailed);
 
         Frame();
@@ -92,10 +93,10 @@ public sealed class StatsCollectorTests : IDisposable
 
         var snapshot = StatsCollector.Snapshot;
         Assert.Equal(500f, snapshot.DisplayHz);
-        Assert.Equal(50f, snapshot.TargetHz, 0.01f);
+        Assert.Equal(10f, snapshot.TargetHz, 0.01f);
         Assert.Equal(0, snapshot.DroppedFrames);
 
-        // 4 ms of update over two frames is about 2 ms a frame, a tenth of the target's 20
+        // Even stretched, the update is a fraction of the target's 100 ms
         Assert.True(snapshot.CpuPercent < 50f);
     }
 
