@@ -28,7 +28,7 @@ Find the message or code below. Content pipeline messages name the item or file 
 | `IMG0001` (warning) | The PNG has a non-sRGB color profile, which isn't applied. Export it as sRGB. |
 | `TEX0001`, `SHD0001`, `SND0001` | A texture, shader, or sound failed to process; the message has the tool's output. For shaders, it's usually a Slang compile error. |
 | More than one `LaunchScreen` item; logo or branding not found; no `Background` | One `LaunchScreen` per game, with a real logo path and `Background="#rrggbb"`. |
-| `LSC0002` (warning) | The logo is cut off by Android 12's splash circle. Lower `LogoSize` to the number the message gives. |
+| `LSC0002` (warning) | The logo is cut off by Android 12's splash circle (Android builds only). Lower the Android head's `LogoSize` to the number the message gives. |
 | iOS content fails on Windows or Linux | Lossy sounds and music for iOS are encoded by macOS. Build iOS on a Mac, or set `LossyFormat="Opus"` on those items. |
 
 ## Analyzers (from the DotGame.Framework package; all errors)

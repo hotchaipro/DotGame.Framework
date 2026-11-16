@@ -154,7 +154,7 @@ One item describes it, and the build makes each platform's form (Android theme a
 ```
 
 - `Background` is required. `LogoSize` is the logo's longer side in dp (points on iOS, CSS pixels on the web; default 160). `Branding` adds an optional mark near the bottom, in a 200 x 80 dp area; `BrandingWidth` narrows it.
-- One `LaunchScreen` item per game. The build warns `LSC0002` when the logo doesn't fit the circle Android 12's splash screen shows, with the largest `LogoSize` that fits.
+- One `LaunchScreen` item per game. The Android build warns `LSC0002` when the logo doesn't fit the circle Android 12's splash screen shows, with the largest `LogoSize` that fits; other platforms show the whole logo, so their heads can set a larger `LogoSize`.
 - It fades out once the first frame is on screen; games write no launch code. Clear the first frames to the same color to continue the look.
 
 ## Platform differences and saving games

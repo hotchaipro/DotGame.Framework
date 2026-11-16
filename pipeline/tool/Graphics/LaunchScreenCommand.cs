@@ -66,6 +66,7 @@ internal static class LaunchScreenCommand
         switch (platform)
         {
             case "android":
+                WarnIfCutOff(screen);
                 WriteAndroid(screen, outputDir, themeParent);
                 break;
 
@@ -122,6 +123,18 @@ internal static class LaunchScreenCommand
         }
     }
 
+    // Android 12's splash screen shows its icon in a circle, so a logo reaching past it is cut
+    // off there; the other platforms show the whole logo, whatever its size (a game can give its
+    // Android head a smaller LogoSize)
+    private static void WarnIfCutOff(Description screen)
+    {
+        float reach = screen.LogoReach;
+        if (reach > (IconVisibleDiameter / 2) + 0.5f)
+        {
+            ContentBuildOutput.Warning(screen.LogoFile, "LSC0002", $"The launch screen logo, {screen.LogoSize.Width:0} x {screen.LogoSize.Height:0} dp, reaches {reach:0} dp from its center, outside the {IconVisibleDiameter:0} dp circle Android 12's splash screen shows of its icon, so it's cut off there. Lower LogoSize to {MathF.Floor(screen.LogoSizeOption * IconVisibleDiameter / 2 / reach):0} or less.");
+        }
+    }
+
     // ── The description ───────────────────────────────────────────────
 
     // The item, with the sizes the images are drawn at (dp)
@@ -132,7 +145,10 @@ internal static class LaunchScreenCommand
         (float Width, float Height) BrandingSize,
         byte Red,
         byte Green,
-        byte Blue)
+        byte Blue,
+        string LogoFile,
+        int LogoSizeOption,
+        float LogoReach)
     {
         public string BackgroundHex => $"#{this.Red:x2}{this.Green:x2}{this.Blue:x2}";
 
@@ -151,10 +167,6 @@ internal static class LaunchScreenCommand
             float logoScale = logoSize / (float)Math.Max(logo.Width, logo.Height);
             var logoDrawn = (logo.Width * logoScale, logo.Height * logoScale);
             float reach = OpaqueReach(logo) * logoScale;
-            if (reach > (IconVisibleDiameter / 2) + 0.5f)
-            {
-                ContentBuildOutput.Warning(logoFile, "LSC0002", $"The launch screen logo, {logoDrawn.Item1:0} x {logoDrawn.Item2:0} dp, reaches {reach:0} dp from its center, outside the {IconVisibleDiameter:0} dp circle Android 12's splash screen shows of its icon, so it's cut off there. Lower LogoSize to {MathF.Floor(logoSize * IconVisibleDiameter / 2 / reach):0} or less.");
-            }
 
             RgbaImage? branding = null;
             (float, float) brandingDrawn = (0, 0);
@@ -172,7 +184,7 @@ internal static class LaunchScreenCommand
                 brandingDrawn = (branding.Width * fit, branding.Height * fit);
             }
 
-            return new Description(logo, logoDrawn, branding, brandingDrawn, r, g, bl);
+            return new Description(logo, logoDrawn, branding, brandingDrawn, r, g, bl, logoFile, logoSize, reach);
         }
 
         private static RgbaImage Load(string file)

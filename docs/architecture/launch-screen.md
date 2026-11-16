@@ -35,8 +35,9 @@ Sizes are device-independent pixels everywhere: dp on Android, points on iOS, CS
 logical pixels on the desktop. The layout is Android 12's splash screen, the one platform whose layout
 is fixed (its icon is a fixed size in a fixed place, of which it shows only a 192 dp circle, and its
 branding gets a fixed area), and every other platform places the logo and branding to match it. The
-build warns (`LSC0002`) when the logo's visible pixels reach outside the circle, with the largest
-`LogoSize` that fits. A game has at most one item; a second is a build error, as are a missing logo or
+Android build warns (`LSC0002`) when the logo's visible pixels reach outside the circle, with the
+largest `LogoSize` that fits; the other platforms show the whole logo, so a wide logo can be larger
+there, with a smaller `LogoSize` in the Android head's item. A game has at most one item; a second is a build error, as are a missing logo or
 branding file and a missing `Background`.
 
 ## The build
