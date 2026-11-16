@@ -211,11 +211,21 @@ function reportHostSetup(message) {
 }
 
 /**
- * The body of a wasm that came with no encoding: the module itself, if a CDN decoded the copy for
- * this browser, which passes on as it arrives; otherwise the copy's Brotli bytes, which the host
- * didn't say it sent, and the body fails with `message`.
+ * Whether a wasm copy has arrived in an encoding other than br (none, or one the browser decoded)
+ * and turned out to be the module: the host (a CDN) decodes copies for this browser, so any other
+ * copy that arrives with no encoding is the file too. A CDN may send a small file plain and a large
+ * one as gzip to the same browser (Cloudflare does). Brotli bytes have no signature to check them
+ * by, so only a wasm can show it.
  */
-function requireWasmModule(body, message) {
+let sendsDecodedCopies = false;
+
+/**
+ * The body of a wasm that came in an encoding other than br, which passes on as it arrives, and
+ * notes whether it's the module (a CDN decoded the copy for this browser). With `message` (no
+ * encoding), what isn't the module is the copy's Brotli bytes, which the host didn't say it sent,
+ * and the body fails with `message`; without it, the caller's own check reports it.
+ */
+function watchWasmModule(body, message) {
     let head = new Uint8Array(0);
     let checked = false;
     return body.pipeThrough(new TransformStream({
@@ -232,7 +242,9 @@ function requireWasmModule(body, message) {
                 return;
             }
             checked = true;
-            if ((head[0] !== 0x00) || (head[1] !== 0x61) || (head[2] !== 0x73) || (head[3] !== 0x6d)) {
+            if ((head[0] === 0x00) && (head[1] === 0x61) && (head[2] === 0x73) && (head[3] === 0x6d)) {
+                sendsDecodedCopies = true;
+            } else if (message) {
                 reportHostSetup(message);
                 controller.error(new Error(message));
                 return;
@@ -240,7 +252,12 @@ function requireWasmModule(body, message) {
             controller.enqueue(head);
         },
         flush(controller) {
-            if (!checked) {
+            if (checked) {
+                return;
+            }
+            if (!message) {
+                controller.enqueue(head);
+            } else {
                 reportHostSetup(message);
                 controller.error(new Error(message));
             }
@@ -259,7 +276,8 @@ function requireWasmModule(body, message) {
  * a browser (or a proxy) that doesn't accept Brotli the file itself, plain or as gzip, from the
  * copy (Cloudflare does). Any other encoding the response names is that, so the body is the file.
  * One that names none is either: a wasm is checked for WebAssembly's magic number; any other file
- * is taken as the host's Brotli bytes.
+ * is the file once a wasm has arrived in an encoding other than br as the module (the runtime's
+ * wasm loads before any content), and is taken as the host's Brotli bytes otherwise.
  */
 export function readPrecompressed(response, originalUrl) {
     if (!response.ok) {
@@ -275,11 +293,13 @@ export function readPrecompressed(response, originalUrl) {
                 + '(see the DotGame guide, Platforms, "Hosting", for each host\'s setup), or the publish can set DotGameWebDecompressionFallback '
                 + 'to true, to fetch gzip copies the page decodes itself, more slowly.';
             if (extensionOf(originalUrl) === '.wasm') {
-                body = requireWasmModule(body, message);
-            } else {
+                body = watchWasmModule(body, message);
+            } else if (!sendsDecodedCopies) {
                 reportHostSetup(message);
                 throw new Error(message);
             }
+        } else if ((encoding !== 'br') && (extensionOf(originalUrl) === '.wasm')) {
+            body = watchWasmModule(body, null);
         }
     } else if (encoding !== 'gzip') {
         body = body.pipeThrough(new DecompressionStream('gzip'));
