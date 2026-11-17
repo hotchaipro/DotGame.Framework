@@ -33,6 +33,7 @@ internal sealed class VoiceStrategy : IVoiceStrategy
     private bool _isPaused;
     private bool _isInActiveList;
     private bool _isLooping;
+    private float _playbackRate = 1f;
 
     // Playing and looping, which holds even if a long frame lets the queue run dry
     private bool _isLoopPlaying;
@@ -128,6 +129,22 @@ internal sealed class VoiceStrategy : IVoiceStrategy
         if (this._isLoopPlaying)
         {
             this.QueueLoopAhead();
+        }
+    }
+
+    // SDL resamples the stream by the ratio as it reads it, so a change is heard at once, and
+    // what's queued (which IsPlaying reads) runs out at the rate it's played at
+    public void SetPlaybackRate(
+        float rate)
+    {
+        this._playbackRate = rate;
+        if (this._stream != nint.Zero)
+        {
+            SDL.SetAudioStreamFrequencyRatio(this._stream, rate);
+            if (this._isLoopPlaying && !this._isPaused)
+            {
+                this.QueueLoopAhead();
+            }
         }
     }
 
@@ -248,7 +265,9 @@ internal sealed class VoiceStrategy : IVoiceStrategy
             return;
         }
 
-        while (SDL.GetAudioStreamQueued(this._stream) < this._loopAheadBytes)
+        // (What's queued is in the sound's own bytes, which a faster rate uses up sooner)
+        int ahead = (int)MathF.Ceiling(this._loopAheadBytes * this._playbackRate);
+        while (SDL.GetAudioStreamQueued(this._stream) < ahead)
         {
             SDL.PutAudioStreamDataNoCopy(
                 this._stream,
