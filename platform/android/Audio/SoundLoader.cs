@@ -103,7 +103,7 @@ internal sealed class SoundLoader : IContentLoader<Sound>
                 AudioOutput.SampleRate,
                 out int outputChannels);
 
-            return new SoundStrategy(samples, outputChannels, duration);
+            return new MixerSoundStrategy(samples, outputChannels, duration);
         }).ConfigureAwait(false);
 
         return new Sound(new Strategy<ISoundStrategy>(bufferStrategy));

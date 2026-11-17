@@ -4,14 +4,14 @@ using System;
 using System.Threading;
 using DotGame.Framework.Platform;
 using DotGame.Framework.Platform.Audio;
-using DotGame.Framework.Platform.Common.Audio;
 
-namespace DotGame.Framework.Android.Audio;
+namespace DotGame.Framework.Platform.Common.Audio;
 
 /// <summary>
-/// One Android voice: a segment of a sound, a play position and a
-/// volume, mixed by <see cref="AudioMixer"/>. A voice owns no
-/// platform resources, so a game can create as many as it likes.
+/// One voice on a platform that mixes sounds itself (Android and
+/// desktop): a segment of a sound, a play position and a volume, mixed
+/// by <see cref="AudioMixer"/>. A voice owns no platform resources, so
+/// a game can create as many as it likes.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -36,7 +36,7 @@ namespace DotGame.Framework.Android.Audio;
 /// thread gets to it.
 /// </para>
 /// </remarks>
-internal sealed class VoiceStrategy : IVoiceStrategy
+internal sealed class MixerVoiceStrategy : IVoiceStrategy
 {
     private readonly AudioMixer _mixer;
     private readonly float[] _samples;
@@ -66,9 +66,9 @@ internal sealed class VoiceStrategy : IVoiceStrategy
 
     private bool _isDisposed;
 
-    internal VoiceStrategy(
+    internal MixerVoiceStrategy(
         AudioMixer mixer,
-        SoundStrategy sound,
+        MixerSoundStrategy sound,
         int sampleRate,
         TimeSpan offset,
         TimeSpan duration)

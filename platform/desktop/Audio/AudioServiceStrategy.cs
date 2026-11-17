@@ -24,34 +24,21 @@ internal sealed class AudioServiceStrategy : IAudioServiceStrategy, IMusicPlayba
     // itself stay paused.
     private readonly HashSet<MusicStrategyBase> _autoPausedMusic = new();
 
-    // Voices that have played and may still be, on the game thread
-    private readonly List<VoiceStrategy> _activeVoices = new();
+    // Every sound voice is mixed here and played through the one output stream, as on Android
+    private readonly AudioMixer _mixer = new();
+    private readonly AudioOutput _output;
 
     internal AudioServiceStrategy()
     {
-    }
-
-    internal void AddActiveVoice(
-        VoiceStrategy voice)
-    {
-        this._activeVoices.Add(voice);
+        this._output = new AudioOutput(this._mixer);
     }
 
     /// <summary>
-    /// Updates the playing voices' gains, each frame, so volume changes and fades reach them.
+    /// Ends the sounds' audio thread and closes its stream. Call before SDL quits.
     /// </summary>
-    internal void UpdateVoices()
+    internal void Shutdown()
     {
-        for (int i = this._activeVoices.Count - 1; i >= 0; i--)
-        {
-            if (!this._activeVoices[i].Update())
-            {
-                // NOTE: Order doesn't matter here, and this doesn't shift the list
-                int last = this._activeVoices.Count - 1;
-                this._activeVoices[i] = this._activeVoices[last];
-                this._activeVoices.RemoveAt(last);
-            }
-        }
+        this._output.Shutdown();
     }
 
     public Task OnInitialize()
@@ -124,9 +111,10 @@ internal sealed class AudioServiceStrategy : IAudioServiceStrategy, IMusicPlayba
         TimeSpan offset,
         TimeSpan duration)
     {
-        var voice = new VoiceStrategy(
-            sound.ToConcrete<SoundStrategy>(),
-            this,
+        var voice = new MixerVoiceStrategy(
+            this._mixer,
+            sound.ToConcrete<MixerSoundStrategy>(),
+            AudioOutput.SampleRate,
             offset,
             duration);
         return new Strategy<IVoiceStrategy>(voice);

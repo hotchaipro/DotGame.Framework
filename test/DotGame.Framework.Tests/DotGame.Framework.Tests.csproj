@@ -18,18 +18,18 @@
     </ItemGroup>
 
     <!-- The internal sources under test, compiled in on their own: the KTX2 reader the platforms'
-              texture loaders share, the native platforms' volume control, and Android's ASTC decoder and
-              sound mixer, which have no Android dependencies.
+              texture loaders share, the native platforms' volume control, Android's and desktop's sound
+              mixer, and Android's ASTC decoder, which has no Android dependencies.
               Add the files a new test covers here. -->
     <ItemGroup>
         <Compile Include="..\..\platform\shared\Content\Ktx2Texture.cs" Link="Platform\Shared\Content\Ktx2Texture.cs" />
         <Compile Include="..\..\platform\shared\Content\Ktx2PixelFormat.cs" Link="Platform\Shared\Content\Ktx2PixelFormat.cs" />
         <Compile Include="..\..\platform\android\Graphics\AstcDecoder.cs" Link="Platform\Android\Graphics\AstcDecoder.cs" />
         <Compile Include="..\..\platform\shared\Graphics\SpriteVertex.cs" Link="Platform\Shared\Graphics\SpriteVertex.cs" />
-        <Compile Include="..\..\platform\android\Audio\AudioMixer.cs" Link="Platform\Android\Audio\AudioMixer.cs" />
-        <Compile Include="..\..\platform\android\Audio\PcmConverter.cs" Link="Platform\Android\Audio\PcmConverter.cs" />
-        <Compile Include="..\..\platform\android\Audio\SoundStrategy.cs" Link="Platform\Android\Audio\SoundStrategy.cs" />
-        <Compile Include="..\..\platform\android\Audio\VoiceStrategy.cs" Link="Platform\Android\Audio\VoiceStrategy.cs" />
+        <Compile Include="..\..\platform\shared\Audio\AudioMixer.cs" Link="Platform\Shared\Audio\AudioMixer.cs" />
+        <Compile Include="..\..\platform\shared\Audio\PcmConverter.cs" Link="Platform\Shared\Audio\PcmConverter.cs" />
+        <Compile Include="..\..\platform\shared\Audio\MixerSoundStrategy.cs" Link="Platform\Shared\Audio\MixerSoundStrategy.cs" />
+        <Compile Include="..\..\platform\shared\Audio\MixerVoiceStrategy.cs" Link="Platform\Shared\Audio\MixerVoiceStrategy.cs" />
         <Compile Include="..\..\platform\shared\Audio\PolledVolumeControlStrategy.cs" Link="Platform\Shared\Audio\PolledVolumeControlStrategy.cs" />
         <Compile Include="..\..\platform\shared\SafeAsync.cs" Link="Platform\Shared\SafeAsync.cs" />
         <Compile Include="..\..\platform\shared\Audio\IMusicPlaybackListener.cs" Link="Platform\Shared\Audio\IMusicPlaybackListener.cs" />
