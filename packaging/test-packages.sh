@@ -137,6 +137,10 @@ for platform in $PLATFORMS; do
       check "$layer sample, webgl: the page loads main.js by its fingerprinted name" 'grep -q "_dotgame/main\.[a-z0-9]*\.js" "$pub/wwwroot/index.html"'
       check "$layer sample, webgl: the content is published" 'find "$pub/wwwroot" -path "*Content*" -type f | grep -q .'
       check "$layer sample, webgl: the framework is published once" '[ "$(ls "$pub/wwwroot/_framework" | grep -cE "^DotGame\.Framework\.[a-z0-9]{10}\.wasm$")" -eq 1 ] && [ "$(ls "$pub/wwwroot/_framework" | grep -cE "^DotGame\.Framework\.WebGL\.[a-z0-9]{10}\.wasm$")" -eq 1 ]'
+      # Release, built only (an AOT publish takes minutes): the platform's scripts are registered without their comments
+      PATH=$CLEAN_PATH dotnet build "$project" -nologo -v q -c Release -p:ContentCacheEnabled=false > "$T/$layer-webgl-release.log" 2>&1
+      check "$layer sample, webgl: builds in Release" '[ $? -eq 0 ]'
+      check "$layer sample, webgl: Release serves the platform's scripts without their comments" 'm=$(ls "$head"/obj/Release/*/dotgame-scripts/_dotgame/main.js) && ! tail -n +2 "$m" | grep -qE "^[[:space:]]*//" && grep -q "dotgame-scripts" "$head"/obj/Release/*/staticwebassets.build.json'
     fi
     if [ $platform = desktop ]; then
       pub=$T/publish-$layer-desktop

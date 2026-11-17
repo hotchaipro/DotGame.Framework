@@ -15,12 +15,33 @@
         </ResolveStaticWebAssetsInputsDependsOn>
     </PropertyGroup>
 
+    <UsingTask TaskName="_StripScriptComments" AssemblyFile="$(FrameworkContentPipelineTasksAssembly)" />
+
     <Target Name="_DotGameRegisterWebScripts" Condition="'$(StaticWebAssetsSdkBuildTasksAssembly)' != ''">
         <PropertyGroup>
             <_DotGameWebScriptsRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\web\'))</_DotGameWebScriptsRoot>
         </PropertyGroup>
         <ItemGroup>
             <_DotGameWebScript Include="$(_DotGameWebScriptsRoot)_dotgame\*.js" />
+        </ItemGroup>
+
+        <!-- Release serves them without their comments and indentation, as from source
+             (platform/webgl/DotGame.Framework.WebGL.csproj, _StripWebScriptComments) -->
+        <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+            <_DotGameWebScriptsRoot>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/$(IntermediateOutputPath)dotgame-scripts/'))</_DotGameWebScriptsRoot>
+        </PropertyGroup>
+        <_StripScriptComments Condition="'$(Configuration)' == 'Release'"
+                              Scripts="@(_DotGameWebScript)"
+                              OutputDirectory="$(_DotGameWebScriptsRoot)_dotgame">
+            <Output TaskParameter="StrippedScripts" ItemName="_DotGameStrippedWebScript" />
+        </_StripScriptComments>
+        <ItemGroup Condition="'$(Configuration)' == 'Release'">
+            <_DotGameWebScript Remove="@(_DotGameWebScript)" />
+            <_DotGameWebScript Include="@(_DotGameStrippedWebScript)" />
+            <FileWrites Include="@(_DotGameStrippedWebScript)" />
+        </ItemGroup>
+
+        <ItemGroup>
             <_DotGameWebScriptCandidate Include="@(_DotGameWebScript)" RelativePath="_dotgame/%(Filename)#[.{fingerprint}]!%(Extension)" />
         </ItemGroup>
 

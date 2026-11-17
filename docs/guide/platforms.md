@@ -246,6 +246,11 @@ A web game can be installed as a progressive web app, with a web app manifest, a
 
 Only a Release publish runs the trimmer, so publish and try it before you ship.
 
+A Release build serves the platform's scripts (`_dotgame/*.js`) without their comments and indentation,
+which are most of their download, and links the runtime without native debug information
+(`WasmNativeDebugSymbols` is `false`), so `dotnet.native.js` is minified too. Each script keeps its lines, so
+the line numbers and function names in a stack trace from a player still point at the source.
+
 ## Android
 
 Android needs the `android` workload, the Android SDK and a JDK. Visual Studio on Windows installs all
