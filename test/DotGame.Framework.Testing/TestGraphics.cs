@@ -162,7 +162,7 @@ public sealed class RecordingBatch : ISpriteBatchStrategy
         Strategy<ITextureStrategy> textureStrategy,
         in Vertex a,
         in Vertex b,
-        in Vertex c)
+        in Vertex c, in ShaderCustomData customData)
     {
         this.TriangleCount++;
     }
@@ -280,7 +280,7 @@ public sealed class TestGraphics : IGraphicsServiceStrategy
 
     private sealed class LastColorBatch(TestGraphics graphics) : ISpriteBatchStrategy
     {
-        public void DrawTriangle(Strategy<ITextureStrategy> textureStrategy, in Vertex a, in Vertex b, in Vertex c)
+        public void DrawTriangle(Strategy<ITextureStrategy> textureStrategy, in Vertex a, in Vertex b, in Vertex c, in ShaderCustomData customData)
         {
         }
 

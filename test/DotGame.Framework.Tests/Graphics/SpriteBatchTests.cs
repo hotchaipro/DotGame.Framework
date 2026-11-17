@@ -66,6 +66,31 @@ public sealed class SpriteBatchTests : IDisposable
     }
 
     [Fact]
+    public void DrawTriangles_CarryTheirShaderDataToThePlatform()
+    {
+        var data = new ShaderCustomData(1f, 2f, 3f, 4f);
+        DotGame.Framework.Graphics.Vertex[] corners =
+        [
+            new(Vector2.Zero, Vector2.Zero, Color.White),
+            new(Vector2.UnitX, Vector2.UnitX, Color.White),
+            new(Vector2.UnitY, Vector2.UnitY, Color.White),
+        ];
+
+        using (this._batch.Begin())
+        {
+            this._batch.DrawTriangles(this._texture, corners, in data);
+            Assert.Equal(data, this._platform.LastTriangleData);
+
+            this._batch.DrawTriangles(this._texture, corners, [0, 1, 2], in data);
+            Assert.Equal(2, this._platform.TriangleCount);
+
+            // Without any, a triangle carries none, as a sprite does
+            this._batch.DrawTriangles(this._texture, corners);
+            Assert.Equal(default, this._platform.LastTriangleData);
+        }
+    }
+
+    [Fact]
     public void Draw_BeforeBegin_Throws()
     {
         Assert.Throws<InvalidOperationException>(() => this._batch.Draw(this._texture, Vector2.Zero, Color.White));
@@ -376,7 +401,13 @@ public sealed class SpriteBatchTests : IDisposable
     {
         public int TriangleCount { get; private set; }
 
-        public void DrawTriangle(Strategy<ITextureStrategy> textureStrategy, in DotGame.Framework.Graphics.Vertex a, in DotGame.Framework.Graphics.Vertex b, in DotGame.Framework.Graphics.Vertex c) => this.TriangleCount++;
+        public ShaderCustomData LastTriangleData { get; private set; }
+
+        public void DrawTriangle(Strategy<ITextureStrategy> textureStrategy, in DotGame.Framework.Graphics.Vertex a, in DotGame.Framework.Graphics.Vertex b, in DotGame.Framework.Graphics.Vertex c, in ShaderCustomData customData)
+        {
+            this.TriangleCount++;
+            this.LastTriangleData = customData;
+        }
 
         public List<string> Calls { get; } = [];
 

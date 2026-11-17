@@ -69,8 +69,8 @@ image inside the rectangle by swapping texture coordinates, so it stays in place
 ### Triangles
 
 ```csharp
-public void DrawTriangles(Texture texture, ReadOnlySpan<Vertex> vertices);
-public void DrawTriangles(Texture texture, ReadOnlySpan<Vertex> vertices, ReadOnlySpan<ushort> indices);
+public void DrawTriangles(Texture texture, ReadOnlySpan<Vertex> vertices, in ShaderCustomData customData = default);
+public void DrawTriangles(Texture texture, ReadOnlySpan<Vertex> vertices, ReadOnlySpan<ushort> indices, in ShaderCustomData customData = default);
 
 public readonly record struct Vertex(Vector2 Position, Vector2 TextureCoordinate, Color Color);
 ```

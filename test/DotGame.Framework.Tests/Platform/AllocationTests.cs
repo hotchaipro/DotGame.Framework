@@ -345,7 +345,7 @@ public sealed class AllocationTests : IDisposable
     {
         public int TriangleCount { get; private set; }
 
-        public void DrawTriangle(Strategy<ITextureStrategy> textureStrategy, in DotGame.Framework.Graphics.Vertex a, in DotGame.Framework.Graphics.Vertex b, in DotGame.Framework.Graphics.Vertex c) => this.TriangleCount++;
+        public void DrawTriangle(Strategy<ITextureStrategy> textureStrategy, in DotGame.Framework.Graphics.Vertex a, in DotGame.Framework.Graphics.Vertex b, in DotGame.Framework.Graphics.Vertex c, in ShaderCustomData customData) => this.TriangleCount++;
 
         private readonly SpriteVertex[] _vertices = new SpriteVertex[4 * 2 * SpritesPerFrame];
         private Matrix4x4 _transform;
