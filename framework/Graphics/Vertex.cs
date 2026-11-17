@@ -3,7 +3,7 @@
 namespace DotGame.Framework.Graphics;
 
 /// <summary>
-/// A corner of a triangle for <see cref="SpriteBatch.DrawTriangles(Texture, System.ReadOnlySpan{Vertex})"/>.
+/// A corner of a triangle for <see cref="SpriteBatch.DrawTriangles(Texture, System.ReadOnlySpan{Vertex}, in ShaderCustomData)"/>.
 /// </summary>
 /// <param name="Position">Where it is, as a sprite's position is, before the batch's transform.</param>
 /// <param name="TextureCoordinate">The point of the texture here, from 0 to 1 across it.</param>

@@ -181,18 +181,20 @@ internal struct SpriteVertex
         in Vertex a,
         in Vertex b,
         in Vertex c,
-        in Matrix4x4 transform)
+        in Matrix4x4 transform,
+        in ShaderCustomData customData)
     {
-        WriteCorner(ref first, in a, in transform);
-        WriteCorner(ref Unsafe.Add(ref first, 1), in b, in transform);
-        WriteCorner(ref Unsafe.Add(ref first, 2), in c, in transform);
+        WriteCorner(ref first, in a, in transform, in customData);
+        WriteCorner(ref Unsafe.Add(ref first, 1), in b, in transform, in customData);
+        WriteCorner(ref Unsafe.Add(ref first, 2), in c, in transform, in customData);
         Unsafe.Add(ref first, 3) = Unsafe.Add(ref first, 2);
     }
 
     private static void WriteCorner(
         ref SpriteVertex vertex,
         in Vertex corner,
-        in Matrix4x4 transform)
+        in Matrix4x4 transform,
+        in ShaderCustomData customData)
     {
         var position = corner.Position;
         vertex.X = (position.X * transform.M11) + (position.Y * transform.M21) + transform.M41;
@@ -200,7 +202,7 @@ internal struct SpriteVertex
         vertex.Color = PackColor(corner.Color);
         vertex.U = corner.TextureCoordinate.X;
         vertex.V = corner.TextureCoordinate.Y;
-        vertex.CustomData = default;
+        vertex.CustomData = customData;
     }
 
     // NaN packs as 0

@@ -92,7 +92,8 @@ internal sealed class SpriteBatchStrategy : ISpriteBatchStrategy
         Strategy<ITextureStrategy> textureStrategy,
         in Vertex a,
         in Vertex b,
-        in Vertex c)
+        in Vertex c,
+        in ShaderCustomData customData)
     {
         if (!this._isDrawing)
         {
@@ -102,7 +103,7 @@ internal sealed class SpriteBatchStrategy : ISpriteBatchStrategy
         var sdlTexture = textureStrategy.ToConcrete<TextureStrategy>();
         ref var first = ref this._graphicsService.Recorder.AddSprite(this._currentShader, this._pipeline, sdlTexture.NativeHandle);
 
-        SpriteVertex.WriteTriangle(ref first, in a, in b, in c, in this._batchTransform);
+        SpriteVertex.WriteTriangle(ref first, in a, in b, in c, in this._batchTransform, in customData);
     }
 
     public void End()

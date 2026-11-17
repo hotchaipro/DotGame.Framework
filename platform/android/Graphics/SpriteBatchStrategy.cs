@@ -227,7 +227,8 @@ internal sealed class SpriteBatchStrategy : ISpriteBatchStrategy, IDisposable
         Strategy<ITextureStrategy> textureStrategy,
         in Vertex a,
         in Vertex b,
-        in Vertex c)
+        in Vertex c,
+        in ShaderCustomData customData)
     {
         if (!this._isDrawing)
         {
@@ -236,7 +237,7 @@ internal sealed class SpriteBatchStrategy : ISpriteBatchStrategy, IDisposable
 
         int textureId = textureStrategy.ToConcrete<TextureStrategy>().TextureId;
         ref var first = ref this.ReserveSprite(textureId, this._batchShader!.ProgramId);
-        SpriteVertex.WriteTriangle(ref first, in a, in b, in c, in this._batchTransform);
+        SpriteVertex.WriteTriangle(ref first, in a, in b, in c, in this._batchTransform, in customData);
         this.CommitSprite();
     }
 

@@ -99,24 +99,37 @@ Queues a texture, or a part of it, to be drawn during this batch.
 ### DrawTriangles
 
 ```csharp
-public void DrawTriangles(Texture texture, ReadOnlySpan<Vertex> vertices)
+public void DrawTriangles(Texture texture, ReadOnlySpan<Vertex> vertices, in ShaderCustomData customData = default)
 ```
 
-Types: [`Texture`](Texture.md), [`Vertex`](Vertex.md)
+Types: [`Texture`](Texture.md), [`Vertex`](Vertex.md), [`ShaderCustomData`](ShaderCustomData.md)
 
 Draws triangles, three vertices each, in order with the sprites around them: for trails, terrain, deformed sprites and shapes. They go through the batch's transform, shader, blend and sampler as sprites do. Draw either way round: nothing is culled.
+
+| Parameter | |
+|---|---|
+| `texture` | The texture the triangles are cut from. |
+| `vertices` | The triangles' corners, three for each. |
+| `customData` | Values passed to the shader with every vertex, read as `TEXCOORD1`, as a sprite's are: what lets a library draw a sprite of its own shape (a glyph in bands of color, a deformed sprite) through the shader its sprites use. The default sprite shader ignores them. |
 
 **Throws `ArgumentException`:** The number of vertices isn't a multiple of three.
 
 Each costs what a sprite costs. For triangles of plain color, draw them with a 1x1 white texture.
 
 ```csharp
-public void DrawTriangles(Texture texture, ReadOnlySpan<Vertex> vertices, ReadOnlySpan<ushort> indices)
+public void DrawTriangles(Texture texture, ReadOnlySpan<Vertex> vertices, ReadOnlySpan<ushort> indices, in ShaderCustomData customData = default)
 ```
 
-Types: [`Texture`](Texture.md), [`Vertex`](Vertex.md)
+Types: [`Texture`](Texture.md), [`Vertex`](Vertex.md), [`ShaderCustomData`](ShaderCustomData.md)
 
 Draws triangles from shared vertices, three indices each.
+
+| Parameter | |
+|---|---|
+| `texture` | The texture the triangles are cut from. |
+| `vertices` | The corners the triangles share. |
+| `indices` | Which three corners each triangle has. |
+| `customData` | Values passed to the shader with every vertex, as a sprite's are. |
 
 **Throws `ArgumentException`:** The number of indices isn't a multiple of three.
 

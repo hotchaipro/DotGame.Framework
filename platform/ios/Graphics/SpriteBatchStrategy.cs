@@ -199,7 +199,8 @@ internal sealed class SpriteBatchStrategy : ISpriteBatchStrategy, IDisposable
         Strategy<ITextureStrategy> textureStrategy,
         in Vertex a,
         in Vertex b,
-        in Vertex c)
+        in Vertex c,
+        in ShaderCustomData customData)
     {
         ObjectDisposedException.ThrowIf(this._disposed, nameof(SpriteBatchStrategy));
 
@@ -209,7 +210,7 @@ internal sealed class SpriteBatchStrategy : ISpriteBatchStrategy, IDisposable
         }
 
         ref var first = ref this.ReserveSprite(textureStrategy.ToConcrete<TextureStrategy>().NativeTexture);
-        SpriteVertex.WriteTriangle(ref first, in a, in b, in c, in this._batchTransform);
+        SpriteVertex.WriteTriangle(ref first, in a, in b, in c, in this._batchTransform, in customData);
         this._spriteCount++;
     }
 

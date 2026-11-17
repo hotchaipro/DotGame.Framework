@@ -95,7 +95,8 @@ internal sealed class SpriteBatchStrategy : ISpriteBatchStrategy
         Strategy<ITextureStrategy> textureStrategy,
         in Vertex a,
         in Vertex b,
-        in Vertex c)
+        in Vertex c,
+        in ShaderCustomData customData)
     {
         if (!this._isDrawing)
         {
@@ -103,7 +104,7 @@ internal sealed class SpriteBatchStrategy : ISpriteBatchStrategy
         }
 
         var webGLTexture = textureStrategy.ToConcrete<TextureStrategy>();
-        SpriteVertex.WriteTriangle(ref this._recorder.AddSprite(webGLTexture.NativeHandle, this._shader), in a, in b, in c, in this._batchTransform);
+        SpriteVertex.WriteTriangle(ref this._recorder.AddSprite(webGLTexture.NativeHandle, this._shader), in a, in b, in c, in this._batchTransform, in customData);
     }
 
     public void End()

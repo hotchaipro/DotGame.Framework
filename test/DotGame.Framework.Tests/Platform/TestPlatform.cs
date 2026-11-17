@@ -182,7 +182,7 @@ internal static class TestPlatform
     {
         public int TriangleCount { get; private set; }
 
-        public void DrawTriangle(Strategy<ITextureStrategy> textureStrategy, in DotGame.Framework.Graphics.Vertex a, in DotGame.Framework.Graphics.Vertex b, in DotGame.Framework.Graphics.Vertex c) => this.TriangleCount++;
+        public void DrawTriangle(Strategy<ITextureStrategy> textureStrategy, in DotGame.Framework.Graphics.Vertex a, in DotGame.Framework.Graphics.Vertex b, in DotGame.Framework.Graphics.Vertex c, in ShaderCustomData customData) => this.TriangleCount++;
 
         public void Begin(Matrix4x4? transformMatrix = null, BlendMode blend = BlendMode.Alpha, Sampler sampler = Sampler.LinearClamp)
         {

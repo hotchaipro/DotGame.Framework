@@ -43,13 +43,15 @@ internal interface ISpriteBatchStrategy : IDisposable
         in ShaderCustomData customData);
 
     /// <summary>
-    /// Queues a triangle to be drawn during this batch, in order with the sprites.
+    /// Queues a triangle to be drawn during this batch, in order with the sprites. Its three
+    /// vertices carry <paramref name="customData"/> to the shader, as a sprite's four do.
     /// </summary>
     public void DrawTriangle(
         Strategy<ITextureStrategy> textureStrategy,
         in Vertex a,
         in Vertex b,
-        in Vertex c);
+        in Vertex c,
+        in ShaderCustomData customData);
 
     /// <summary>
     /// Ends the sprite batch and flushes all queued draw calls.

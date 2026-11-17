@@ -239,4 +239,24 @@ public sealed class SpriteVertexTests
             Assert.Equal(vs[i], flipped[i].V);
         }
     }
+
+    [Fact]
+    public void ATriangle_CarriesItsShaderDataInEveryVertex()
+    {
+        var quad = new SpriteVertex[4];
+        var data = new ShaderCustomData(1f, 2f, 3f, 4f);
+        var a = new DotGame.Framework.Graphics.Vertex(new Vector2(1, 2), new Vector2(0, 0), Color.White);
+        var b = new DotGame.Framework.Graphics.Vertex(new Vector2(3, 2), new Vector2(1, 0), Color.White);
+        var c = new DotGame.Framework.Graphics.Vertex(new Vector2(1, 5), new Vector2(0, 1), Color.White);
+
+        SpriteVertex.WriteTriangle(ref quad[0], in a, in b, in c, Matrix4x4.Identity, in data);
+
+        foreach (var vertex in quad)
+        {
+            Assert.Equal(data, vertex.CustomData);
+        }
+
+        // (The fourth repeats the third, so the sprite's second triangle has no area)
+        Assert.Equal((quad[2].X, quad[2].Y), (quad[3].X, quad[3].Y));
+    }
 }

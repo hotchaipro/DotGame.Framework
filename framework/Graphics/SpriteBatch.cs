@@ -380,10 +380,18 @@ public sealed class SpriteBatch : IDisposable
     /// Each costs what a sprite costs. For triangles of plain color, draw them with a 1x1 white
     /// texture.
     /// </remarks>
+    /// <param name="texture">The texture the triangles are cut from.</param>
+    /// <param name="vertices">The triangles' corners, three for each.</param>
+    /// <param name="customData">
+    /// Values passed to the shader with every vertex, read as <c>TEXCOORD1</c>, as a sprite's
+    /// are: what lets a library draw a sprite of its own shape (a glyph in bands of color, a
+    /// deformed sprite) through the shader its sprites use. The default sprite shader ignores them.
+    /// </param>
     /// <exception cref="ArgumentException">The number of vertices isn't a multiple of three.</exception>
     public void DrawTriangles(
         Texture texture,
-        ReadOnlySpan<Vertex> vertices)
+        ReadOnlySpan<Vertex> vertices,
+        in ShaderCustomData customData = default)
     {
         ArgumentNullException.ThrowIfNull(texture);
 
@@ -399,18 +407,23 @@ public sealed class SpriteBatch : IDisposable
 
         for (int i = 0; i < vertices.Length; i += 3)
         {
-            this.Strategy.Interface.DrawTriangle(texture.Strategy, in vertices[i], in vertices[i + 1], in vertices[i + 2]);
+            this.Strategy.Interface.DrawTriangle(texture.Strategy, in vertices[i], in vertices[i + 1], in vertices[i + 2], in customData);
         }
     }
 
     /// <summary>
     /// Draws triangles from shared vertices, three indices each.
     /// </summary>
+    /// <param name="texture">The texture the triangles are cut from.</param>
+    /// <param name="vertices">The corners the triangles share.</param>
+    /// <param name="indices">Which three corners each triangle has.</param>
+    /// <param name="customData">Values passed to the shader with every vertex, as a sprite's are.</param>
     /// <exception cref="ArgumentException">The number of indices isn't a multiple of three.</exception>
     public void DrawTriangles(
         Texture texture,
         ReadOnlySpan<Vertex> vertices,
-        ReadOnlySpan<ushort> indices)
+        ReadOnlySpan<ushort> indices,
+        in ShaderCustomData customData = default)
     {
         ArgumentNullException.ThrowIfNull(texture);
 
@@ -426,7 +439,7 @@ public sealed class SpriteBatch : IDisposable
 
         for (int i = 0; i < indices.Length; i += 3)
         {
-            this.Strategy.Interface.DrawTriangle(texture.Strategy, in vertices[indices[i]], in vertices[indices[i + 1]], in vertices[indices[i + 2]]);
+            this.Strategy.Interface.DrawTriangle(texture.Strategy, in vertices[indices[i]], in vertices[indices[i + 1]], in vertices[indices[i + 2]], in customData);
         }
     }
 

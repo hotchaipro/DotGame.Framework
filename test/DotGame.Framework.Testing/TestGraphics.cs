@@ -136,6 +136,21 @@ public readonly record struct DrawCall(
 }
 
 /// <summary>
+/// What a test's batch was asked to draw as a triangle.
+/// </summary>
+/// <param name="Texture">The texture drawn, if a test made it (see <see cref="TestTextures"/>).</param>
+/// <param name="A">Its first corner.</param>
+/// <param name="B">Its second corner.</param>
+/// <param name="C">Its third corner.</param>
+/// <param name="CustomData">The values its vertices carry to the shader.</param>
+public readonly record struct TriangleCall(
+    Texture? Texture,
+    Vertex A,
+    Vertex B,
+    Vertex C,
+    ShaderCustomData CustomData);
+
+/// <summary>
 /// A begun <see cref="SpriteBatch"/> that keeps what's drawn with it. The list has room for
 /// allocation tests to draw without growing it.
 /// </summary>
@@ -158,13 +173,18 @@ public sealed class RecordingBatch : ISpriteBatchStrategy
 
     public int TriangleCount { get; private set; }
 
+    /// <summary>The triangles drawn, in order. The list has room, as <see cref="Calls"/> has.</summary>
+    public List<TriangleCall> Triangles { get; } = new(4096);
+
     void ISpriteBatchStrategy.DrawTriangle(
         Strategy<ITextureStrategy> textureStrategy,
         in Vertex a,
         in Vertex b,
-        in Vertex c)
+        in Vertex c,
+        in ShaderCustomData customData)
     {
         this.TriangleCount++;
+        this.Triangles.Add(new TriangleCall(TestTextures.OwnerOf(textureStrategy), a, b, c, customData));
     }
 
     void ISpriteBatchStrategy.Begin(
@@ -280,7 +300,7 @@ public sealed class TestGraphics : IGraphicsServiceStrategy
 
     private sealed class LastColorBatch(TestGraphics graphics) : ISpriteBatchStrategy
     {
-        public void DrawTriangle(Strategy<ITextureStrategy> textureStrategy, in Vertex a, in Vertex b, in Vertex c)
+        public void DrawTriangle(Strategy<ITextureStrategy> textureStrategy, in Vertex a, in Vertex b, in Vertex c, in ShaderCustomData customData)
         {
         }
 
