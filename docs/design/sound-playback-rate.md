@@ -347,7 +347,8 @@ does many times a second.
   across plays, sent to the platform only when it changes). Toolkit tests: the pool's overload.
 - Desktop (Windows): each play ended at its length over its rate, from 0.25 to 4.
 - iOS simulator: the trial above.
-- Web: see the pull request for what was run.
+- Web (headless Chrome, Blockdown's Release build): each play ended at its length over its rate,
+  from 0.25 to 4 (0.20 s at twice the rate, 0.82 s at half, 1.62 s at a quarter, for a 0.4 s sound).
 - Not run: Android on a device or an emulator (the mixer is what the tests drive), iOS on a device,
   and nobody has listened to any of it.
 
