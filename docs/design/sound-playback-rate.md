@@ -1,6 +1,9 @@
-# Design note: playback rate for sounds
+# Design note: playback rate for sounds, and pan
 
 Status: proposed, 2026-11-17. Nothing here is built.
+
+In short: add `SoundVoice.PlaybackRate` now, on its own. Design `Pan` now (it's below) and build it
+later, when a game needs it. No helper class for semitones.
 
 ## The need
 
@@ -32,12 +35,6 @@ public sealed class SoundVoice
 
     public const float MinPlaybackRate = 0.25f;  // two octaves down
     public const float MaxPlaybackRate = 4f;     // two octaves up
-}
-
-public static class AudioMath
-{
-    public static float RateFromSemitones(float semitones);   // 2^(semitones / 12)
-    public static float RateFromCents(float cents);           // 2^(cents / 1200)
 }
 ```
 
@@ -75,7 +72,7 @@ Usage:
 
 ```csharp
 pop.Play(1f, 0.94f + (0.12f * random.NextSingle()));          // a little different each time
-syllable.Play(0.8f, AudioMath.RateFromSemitones(melody[i]));  // a line that rises at its end
+syllable.Play(0.8f, MathF.Pow(2f, melody[i] / 12f));          // a line that rises at its end, in semitones
 voice.PlaybackRate = 1.5f;                                    // a voice the game holds itself
 ```
 
@@ -138,11 +135,93 @@ varispeed) it never does, and a wrong guess is heard on the first play.
 If `Pitch` is preferred for familiarity, it should be the multiplier (Unity's and Godot's meaning), and
 nothing else in this note changes.
 
-### The unit for music: a helper, not a second property
+### Semitones: no helper class
 
-Semitones and cents are what a composer thinks in, and Web Audio and Godot offer them beside the
-multiplier (`detune`, `random_pitch_semitones`). Two properties that multiply together are two places
-for a value to hide, so here the property is the multiplier alone and `AudioMath` converts.
+An earlier draft of this note had a public `AudioMath` class with `RateFromSemitones` and
+`RateFromCents`, for a game that thinks in musical steps. It's withdrawn:
+
+- **It isn't needed.** The conversion is one expression, `MathF.Pow(2f, semitones / 12f)`, and the
+  guide can give it where it explains the rate.
+- **Nobody else has one.** None of the APIs in the table offers a function that turns semitones into
+  a rate. Where musical units exist they are a second property on the playing thing (Web Audio's
+  `detune`, Phaser's `detune`, Godot's `random_pitch_semitones`), and Unity, MonoGame, libGDX, SDL
+  and FMOD Core have nothing: their users write the expression. (Godot's `linear_to_db` and
+  `db_to_linear` are the nearest thing, and they are for volume.)
+- **It's against the framework's grain.** The audio API is six types that each stand for something
+  that plays or is controlled. A static class of arithmetic would be the first public type that does
+  neither, added for one line of arithmetic, and kept forever.
+
+A second property (`Detune`) isn't proposed either: two values that multiply together are two places
+for a setting to hide. If musical units prove common in games, the place for them is the toolkit,
+beside `SoundPool`, where a mistake costs less than in the framework.
+
+## Pan
+
+### Recommendation: design it now, build it later
+
+Rate and pan look related, and in the API they are: each is one number on a voice. Underneath they
+have nothing in common. Rate is resampling; pan is a gain for each output channel. Building them
+together saves no work, with two exceptions noted below, and pan has a cost that rate doesn't:
+
+| Platform | Pan needs | Size |
+|---|---|---|
+| Android | Two gains per voice in the framework's mixer where there is one. | small |
+| iOS | `AVAudioPlayerNode.pan`, set where the volume is set. | small, if it works through the varispeed unit (below) |
+| Web | A `StereoPannerNode` for each voice, or a splitter, two gains and a merger for an exact law. | small |
+| Desktop | **SDL has no pan.** A stream has one gain (`SDL_SetAudioStreamGain`); only SDL_mixer pans, and the framework doesn't use it. A desktop voice queues a pointer into the shared PCM without copying, so there's nowhere to scale a channel. Pan there means a voice's stream becomes stereo and plays a panned copy made at `Play` (which then can't follow a change while it plays), or desktop voices move to a mixer of the framework's own, as Android's are. | large |
+
+So pan is small on three platforms and a change of design on the fourth, and no game is waiting for
+it: Blockdown is played on a phone's speaker, where pan is barely heard. A minimal framework shouldn't
+carry an API that has no user and a platform that can't honour it yet.
+
+The two exceptions, where doing a little now is cheaper than doing it later:
+
+1. **The iOS trial build for rate should try pan and volume too.** Rate puts a varispeed unit between
+   a voice's player node and the mixer. A player node's volume and pan are applied on the mixer's
+   input, and Apple's documentation doesn't say whether that still holds with a unit in between. If
+   it doesn't, the design for rate has to change (it would break today's volume), and it's the same
+   trial that answers it for pan.
+2. **The Android mixer's loop is being rewritten for rate.** Written with a gain for each channel
+   (both the same for now), pan later is a change of two numbers there, not a second rewrite.
+
+### The shape, so that rate leaves room for it
+
+```csharp
+public sealed class SoundVoice
+{
+    /// <summary>
+    /// Where the voice sits between the left and right speakers: -1 is all to the left, 0 is as
+    /// recorded, 1 is all to the right.
+    /// </summary>
+    public float Pan { get; set; }      // default 0; clamped to -1..1; NaN throws
+}
+```
+
+- **Name and range are settled by precedent**: `Pan`, −1 to 1, 0 in the middle, in MonoGame
+  (`SoundEffectInstance.Pan`, and the third argument of `Play(volume, pitch, pan)`), Unity
+  (`panStereo`), libGDX, FMOD Core, Web Audio (`StereoPannerNode.pan`) and Apple (`AVAudioMixing.pan`).
+  raylib is the one exception (0 to 1, 0.5 in the middle). Godot and OpenAL have no pan: they place a
+  sound in space. The MonoGame, libGDX, Web Audio and raylib entries were checked on 2026-11-17; the
+  rest are from memory.
+- **The law has to be chosen, because the platforms differ.** Proposed: at 0 the sound is exactly as
+  it is without pan, and toward one side the other channel fades out in a straight line while the
+  near one stays as it is (a balance control; a mono sound counts as the same in both channels). It
+  changes nothing for sounds that aren't panned, and it never makes a sound louder. The alternative,
+  equal power, keeps loudness steady across the sweep but is 3 dB down in the middle for a mono sound
+  (Web Audio's `StereoPannerNode` works this way), so adding the property would quieten every centred
+  sound unless the unpanned case is made special.
+- **Where the platform has its own law (iOS), the middle and the two ends are guaranteed and the
+  curve between is the platform's.** For sound effects the difference isn't heard. This would be the
+  first place the framework's audio isn't the same on every platform, and the documentation should
+  say so.
+- **In the pool, pan is where positional arguments stop** (rule 5 below): `Play(volume, playbackRate)`
+  doesn't grow a third float. A game that pans holds the voice, or the pool gains a settings struct.
+
+### When pan is built
+
+Order: Android (nearly free after rate), web, iOS, and desktop last, with its design decided on its
+own: whether desktop voices should move to a managed mixer is a larger question than pan, and pan
+alone shouldn't force it.
 
 ## Growing without breaking
 
@@ -166,7 +245,7 @@ What stays possible later, each without touching what's proposed here:
 
 | Later | How it fits |
 |---|---|
-| `SoundVoice.Pan` | another property, rule 1 |
+| `SoundVoice.Pan` | another property, rule 1; designed above |
 | A rate for a group (slow motion for every sound) | a rate on a shared control, multiplied with the voice's, as volumes multiply through `VolumeControl` |
 | Variation built into a pool or a sound bank's cue | a property on `SoundPool`, or a field in the bank's content, that the pool applies when it plays (Godot's `AudioStreamRandomizer`) |
 | `Music.PlaybackRate` | the same name and meaning; it needs the decoders' output resampled on each platform |
@@ -187,6 +266,9 @@ Open questions, all iOS, to answer with a throwaway build on a device before com
 - What a varispeed unit per voice slot costs when its rate is 1, and whether its `bypass` removes that.
 - Whether the voice's end is still reported at the right moment with the unit downstream of the node.
 - Whether setting the unit's rate from the volume thread can reach the audio server (it must not block).
+- Whether the player node's volume (used today) and pan (for later) still apply with the unit between
+  the node and the mixer. If the volume doesn't, the volume moves to the unit's output or the unit
+  goes elsewhere, and this design changes.
 
 If a unit per slot is too dear, the fallback is internal: two kinds of slot, and a voice moves to one
 with a unit the first time its rate leaves 1 while it's stopped. The public API is the same either way.
@@ -202,8 +284,9 @@ other platforms are checked by ear and by `IsPlaying`'s timing in the sample gam
 
 ## Order of work
 
-1. Framework: the property, `AudioMath`, the Android mixer and its tests, web, desktop.
-2. iOS, after the questions above are answered on a device.
+1. Framework: the property, the Android mixer (with a gain for each channel) and its tests, web,
+   desktop.
+2. iOS, after the questions above are answered on a device, pan and volume among them.
 3. Toolkit `SoundPool.Play(volume, playbackRate)`, then HotChai.Game's `SoundPlayer`.
 4. Guide and architecture pages (`docs/guide/audio.md`, `docs/architecture/audio.md`), API reference.
 5. Blockdown: the guide's syllables take their melody from the rate; repeated effects vary by a few
