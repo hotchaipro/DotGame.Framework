@@ -445,9 +445,9 @@ internal sealed class AudioServiceStrategy : IAudioServiceStrategy, IMusicPlayba
         TimeSpan offset,
         TimeSpan duration)
     {
-        var voice = new VoiceStrategy(
+        var voice = new MixerVoiceStrategy(
             this._mixer,
-            sound.ToConcrete<SoundStrategy>(),
+            sound.ToConcrete<MixerSoundStrategy>(),
             AudioOutput.SampleRate,
             offset,
             duration);

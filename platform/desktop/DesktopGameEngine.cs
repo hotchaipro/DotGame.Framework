@@ -354,6 +354,9 @@ public sealed class DesktopGameEngine
             // a track's background queue finish and hand its stream back
             MusicStrategy.DisposeAndDrainAll(TimeSpan.FromSeconds(2));
 
+            // And the sounds' stream, which their audio thread is writing to
+            this._audioService?.Shutdown();
+
             SDL.Quit();
         }
 
@@ -1038,8 +1041,6 @@ public sealed class DesktopGameEngine
         // stale value. Polling here reports the corrected size on the next
         // frame without requiring the user to resize the window again.
         this.SyncDisplay(host, window);
-
-        this._audioService?.UpdateVoices();
 
         // The frame's time, on SDL's monotonic clock: the vsync-paced wait has just ended
         var frameTimestamp = TimeSpan.FromTicks((long)(SDL.GetTicksNS() / 100));

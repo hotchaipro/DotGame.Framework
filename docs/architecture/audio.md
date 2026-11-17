@@ -54,7 +54,7 @@ Each platform implements the internal interfaces in
 The invariants every implementation keeps:
 
 - **Voice creation is where the cost is.** `CreateVoice` turns the segment into whatever the platform
-  plays (a frame range, a pinned pointer and length, a scheduled buffer, a JavaScript object) and clamps
+  plays (a frame range, a scheduled buffer, a JavaScript object) and clamps
   it to the decoded audio. After that, `Play`, `Stop` and `Pause` allocate nothing on the managed heap.
 - **`IsPlaying` is true as soon as `Play` returns**, not when an audio thread gets to it, and turns false
   at the segment's end (unless looping), on `Stop` and on `Pause`.
@@ -136,7 +136,7 @@ which makes the shared
 bring in two classes:
 
 - [`SoundDecoder`](../../platform/shared/Audio/SoundDecoder.cs) decodes a whole WAV, FLAC or Ogg Opus file
-  to 16-bit interleaved PCM, optionally on the pinned heap. Desktop and Android decode every sound with it,
+  to 16-bit interleaved PCM. Desktop and Android decode every sound with it,
   and iOS its lossless sounds, so a sound has the same samples on all three.
 - [`OpusMusicReader`](../../platform/shared/Audio/OpusMusicReader.cs) streams an Ogg Opus track as 16-bit
   PCM at 48 kHz, with sample-exact seeks for start and loop points (a seek starts decoding 400 ms early,
@@ -148,38 +148,78 @@ iOS decodes lossy sounds and music with `AVAudioFile`, which leaves out the enco
 padding, so a segment's offsets land on the same samples as in the source. The web decodes in the
 browser, so a web game's download doesn't carry the codecs at all.
 
+## The sound mixer (desktop and Android)
+
+On desktop and Android every sound effect plays through **one output stream, mixed in managed code**
+that the two share ([`platform/shared/Audio`](../../platform/shared/Audio), compiled into a platform
+that sets `DotGameSoundMixer`). A voice is a plain managed object that costs nothing on the platform,
+so a game can make as many as it likes. Each platform has its own `AudioOutput`, which owns the
+device's stream and the audio thread that calls `Mix` a burst at a time; everything else is here.
+
+- **[`AudioMixer`](../../platform/shared/Audio/AudioMixer.cs)** holds the voices in a copy-on-write array:
+  creating or disposing a voice allocates, under a lock; the audio thread reads the array without one.
+  `Mix` clears the burst and adds every playing voice into it. Voices sum in float, and Android and
+  SDL clamp float output, so there's no limiter.
+- **Sounds are converted once, at load.** Each platform's sound loader decodes the file, and
+  [`PcmConverter`](../../platform/shared/Audio/PcmConverter.cs) then converts it to float at the
+  mixer's rate ([`MixerSoundStrategy`](../../platform/shared/Audio/MixerSoundStrategy.cs)). Sounds are
+  built at 48 kHz, the rate most devices mix at, so that's usually only the conversion to float, eight
+  samples at a time; a sound at another rate, or an Android device that mixes at another, gets the
+  sound resampled with a 4-point cubic Hermite interpolator. Mono stays mono and is written to both channels;
+  more than two channels keep the first two. Mixing is then a multiply-add per sample, with no rate or
+  format conversion on the audio thread.
+- **[`MixerVoiceStrategy`](../../platform/shared/Audio/MixerVoiceStrategy.cs)** holds its sound's samples, its
+  segment as a frame range, its volume control and a play position. The game thread drives it with
+  generation counters and volatile flags: `Play` bumps the play generation, `Stop` marks the current
+  generation stopped, `Pause` sets a flag, and the audio thread marks a generation finished when it
+  reaches the segment's end. Neither side locks, and `Play` allocates nothing.
+- **Volume.** The mixer reads each playing voice's effective volume once per burst and ramps linearly
+  from the last burst's value across this one, so changes and fades never click and need no game-thread
+  polling. The left and right gains are kept apart, though they're the same, so that a pan would
+  change what they're set to and not the mixing.
+- **Rate.** A voice's rate is a volatile field read once per burst. At 1, with the position on a whole
+  frame, the samples are added as they are, as before. Otherwise the position is fractional and steps
+  by the rate, and each output frame is read through the same 4-point Hermite interpolator the sounds
+  are converted with; the frames past a segment's ends are its end frames, or its other end's when it
+  loops, so a loop has no seam. A rate changed mid-play carries on from the position it had reached.
+
+The framework tests compile `AudioMixer`, `MixerVoiceStrategy`, `MixerSoundStrategy` and `PcmConverter`
+in, since they have no platform types, and test mixing and conversion directly. Playing a game on the
+desktop runs the same mixing code an Android phone does.
+
 ## Desktop
 
-Desktop uses SDL3's audio. SDL mixes every open stream into the device itself.
+Desktop uses SDL3's audio: one stream for all the sound effects, fed by [the mixer](#the-sound-mixer-desktop-and-android),
+and one for each music track. SDL mixes the open streams into the device.
 
-- **Sounds.** The PCM is on the pinned heap
-  ([`SoundStrategy`](../../platform/desktop/Audio/SoundStrategy.cs)), because SDL reads it while it plays.
-- **Voices.** Each [`VoiceStrategy`](../../platform/desktop/Audio/VoiceStrategy.cs) opens its own
-  `SDL_AudioStream` on the default playback device when it's created, in the sound's format. `Play` clears
-  the stream and queues a pointer into the pinned PCM with `SDL_PutAudioStreamDataNoCopy`: no copy, no
-  allocation. A looping voice keeps a quarter of a second queued ahead, topped up each frame, so only a
-  frame longer than that leaves a gap.
-- **Rate.** `SDL_SetAudioStreamFrequencyRatio` on the voice's stream: SDL resamples as it reads. A
-  stream that resamples holds its last frames back for the frames it expects next, so a cue that isn't
-  looping is flushed as it's queued (`SDL_FlushAudioStream`); without that the queue never empties and
-  the voice never finishes. A looping voice's quarter second ahead is in the sound's own bytes, so it's
-  multiplied by the rate.
-- **Volume.** The audio service keeps a list of voices that have played and, once a frame
-  (`UpdateVoices`, on the game thread), sets each one's stream gain from its control, dropping the voices
-  that have finished. There's deliberately no SDL get callback: managed code on SDL's audio thread would
-  run every device buffer for every voice, hold the device's lock through any garbage collection, and a
-  voice dropped without being disposed would leave SDL calling a collected delegate.
+- **[`AudioOutput`](../../platform/desktop/Audio/AudioOutput.cs)** owns the sounds' one
+  `SDL_AudioStream` on the default playback device: float, stereo, 48 kHz, the rate sounds are built
+  at. SDL converts the stream to the device's own rate if it differs, and moves it when the system's
+  default device changes, so the mixer's rate never changes.
+- **The audio thread**, "DotGame Audio Mixer", is started by the first `Play` and makes every call on
+  the stream. It mixes a burst of 5 ms at a time and keeps the stream holding what the device reads at
+  once (`SDL_GetAudioDeviceFormat`'s sample frames, 10 ms on a typical Windows device) plus one burst,
+  checking every 2 ms (`SDL_DelayNS`). If it finds the stream empty while a voice plays (a GC pause, a
+  busy machine) it keeps a burst more from then on, up to 16.
+- **Why a thread and not the stream's get callback.** The callback runs on SDL's audio thread holding
+  the device's lock, so a garbage collection that suspended it would hold up the music's stream and any
+  game thread calling SDL's audio, and an exception in it would end the process. The price is the burst
+  kept queued, about 5 ms more than a callback would need.
+- **Idle.** After 15 seconds of silence the thread pauses and clears the stream and parks; the next
+  voice to play wakes it, as on Android.
+- **Sounds.** [`SoundLoader`](../../platform/desktop/Content/SoundLoader.cs) decodes on the calling
+  thread and converts to the mixer's float samples.
 - **Music.** [`MusicStrategy`](../../platform/desktop/Audio/MusicStrategy.cs) opens its stream on acquire
   and runs a decode thread of its own that keeps a quarter of a second queued, setting the gain as it
   goes. Decoding in the stream's callback would put a slow decode or a cold disk read on SDL's audio
   thread, holding the device lock, and an exception there would end the process.
 - **Lifecycle.** When the window is minimized or hidden the service pauses playing music, and resumes
-  what it paused when the window is shown. `ShouldPlayMusic` is always true.
+  what it paused when the window is shown; sounds play on. `ShouldPlayMusic` is always true. The engine
+  ends the sounds' thread, which closes their stream, before SDL quits.
 
 ## Android
 
-Every sound effect plays through **one output stream, mixed in managed code**. A voice is a plain
-managed object that costs nothing on the platform, so a game can make as many as it likes.
+Sound effects play through [the mixer](#the-sound-mixer-desktop-and-android) into one `AudioTrack`.
 
 - **[`AudioOutput`](../../platform/android/Audio/AudioOutput.cs)** owns the one `AudioTrack`:
   `MODE_STREAM`, `ENCODING_PCM_FLOAT`, stereo, at the device's native output rate
@@ -196,36 +236,9 @@ managed object that costs nothing on the platform, so a game can make as many as
   to play wakes it. Fifteen seconds is long enough that a tap in a slow-paced game doesn't find the output
   asleep, and short enough that an idle game costs no CPU. A wake is published before the parked check,
   and the thread checks for one before parking, so a voice started as it decides to park is never missed.
-- **[`AudioMixer`](../../platform/android/Audio/AudioMixer.cs)** holds the voices in a copy-on-write array:
-  creating or disposing a voice allocates, under a lock; the audio thread reads the array without one.
-  `Mix` clears the burst and adds every playing voice into it. Voices sum in float, and Android clamps
-  float output, so there's no limiter.
-- **Sounds are converted once, at load.** [`SoundLoader`](../../platform/android/Audio/SoundLoader.cs)
-  decodes on the thread pool, at most three at a time so a large load doesn't take every core while the
-  game starts. [`PcmConverter`](../../platform/android/Audio/PcmConverter.cs) then converts to float at
-  the output rate. Sounds are built at 48 kHz, the rate most devices mix at, so that's usually only the
-  conversion to float, eight samples at a time; a device that mixes at another rate gets the sound
-  resampled with a 4-point cubic Hermite interpolator. Mono stays mono and is written to both channels;
-  more than two channels keep the first two. Mixing is then a multiply-add per sample, with no rate or
-  format conversion on the audio thread.
-- **[`VoiceStrategy`](../../platform/android/Audio/VoiceStrategy.cs)** holds its sound's samples, its
-  segment as a frame range, its volume control and a play position. The game thread drives it with
-  generation counters and volatile flags: `Play` bumps the play generation, `Stop` marks the current
-  generation stopped, `Pause` sets a flag, and the audio thread marks a generation finished when it
-  reaches the segment's end. Neither side locks, and `Play` allocates nothing.
-- **Volume.** The mixer reads each playing voice's effective volume once per burst and ramps linearly
-  from the last burst's value across this one, so changes and fades never click and need no game-thread
-  polling. The left and right gains are kept apart, though they're the same, so that a pan would
-  change what they're set to and not the mixing.
-- **Rate.** A voice's rate is a volatile field read once per burst. At 1, with the position on a whole
-  frame, the samples are added as they are, as before. Otherwise the position is fractional and steps
-  by the rate, and each output frame is read through the same 4-point Hermite interpolator the sounds
-  are converted with; the frames past a segment's ends are its end frames, or its other end's when it
-  loops, so a loop has no seam. A rate changed mid-play carries on from the position it had reached.
-
-The framework tests compile `AudioMixer`, `VoiceStrategy`, `SoundStrategy` and `PcmConverter` in, since
-they have no Android types, and test mixing and conversion on the desktop.
-
+- **Sounds.** [`SoundLoader`](../../platform/android/Audio/SoundLoader.cs) decodes on the thread pool,
+  at most three at a time so a large load doesn't take every core while the game starts, and converts
+  to the mixer's float samples at the device's output rate.
 **Music** keeps a streaming `AudioTrack` per track
 ([`MusicStrategy`](../../platform/android/Audio/MusicStrategy.cs)): 16-bit, `USAGE_GAME` /
 `CONTENT_TYPE_MUSIC`, with a 400 ms buffer and a refill thread at `THREAD_PRIORITY_AUDIO` that decodes
@@ -385,7 +398,7 @@ anything.
 
 | Platform | While the audio system is unavailable | When it comes back |
 |---|---|---|
-| Desktop | `SDL_OpenAudioDeviceStream` returns no stream: that voice stays silent and `IsPlaying` false; music's acquire fails and is reported. SDL opens devices on its own thread and never blocks the caller on a missing device. | Default-device streams follow the system's default device. A voice whose stream never opened stays silent until it's made again. |
+| Desktop | `SDL_OpenAudioDeviceStream` returns no stream: the audio thread mixes to nowhere at a device's pace, so voices are silent and finish when they would have; music's acquire fails and is reported. SDL opens devices on its own thread and never blocks the caller on a missing device. | Default-device streams follow the system's default device. The sounds' stream is tried again every second while sounds play. |
 | Android | If the output track can't be created or a write fails, the audio thread ends, voices are silent, and the next sound played at least a second later tries again. A music track whose `AudioTrack` can't be made is silent. Music doesn't start while another app holds focus. | One track to reopen, at the next sound. Focus regained resumes music. |
 | iOS | Voices and tracks are plain objects with unwired nodes: voices are silent and `IsPlaying` stays false; music prepares and plays as usual, silently. Nothing touches the output unit. | The probe succeeds, the engine is built, and every node is wired; playing music starts. |
 | Web | The context stays `suspended` or `interrupted`; the game thread is never blocked. | `audio.js` resumes the context at the next gesture, rebuilding it if WebKit left it interrupted. |
@@ -404,7 +417,7 @@ The alternatives:
 
 | | Verdict |
 |---|---|
-| A managed mixer on one `MODE_STREAM` track | Chosen: about two bursts of latency, adaptive; one thread doing a multiply-add per sample per playing voice; no allocation after load; cheap voices, as on iOS and desktop |
+| A managed mixer on one `MODE_STREAM` track | Chosen: about two bursts of latency, adaptive; one thread doing a multiply-add per sample per playing voice; no allocation after load; cheap voices, as on iOS |
 | Static tracks built on first play, with a cap and voice stealing | A hidden cap and cross-sound stealing no other platform has, a JNI and binder call on the game thread for each voice's first play, and a safe cap that varies by device |
 | `android.media.SoundPool` | It decodes from files itself (no shared PCM, no segments without temporary files), fixes its stream count at creation, and can't report when a sound ends, so `IsPlaying` couldn't be honest |
 | AAudio through P/Invoke | Lowest latency, but its data callback would run managed code on a native real-time thread, where a GC suspension is an audible glitch; and the framework supports Android versions before AAudio. The mixer only needs a small output interface, so this stays possible without touching voices |
@@ -412,6 +425,14 @@ The alternatives:
 Converted float PCM takes about twice the memory of the 16-bit PCM, a few MB for a game's effects, which
 is cheaper than the native buffers per voice it avoids. A GC pause longer than the buffered audio still
 causes a click; the adaptive queue absorbs repeats.
+
+**The same mixer on desktop.** Desktop voices were SDL streams, one each, with SDL doing the mixing,
+the rate and the volume. That worked, but it was a second implementation of everything a voice does
+(a rate needed a flush SDL doesn't document as required, a loop a queue topped up each frame), SDL has
+no pan, and the Android mixer was only ever run on a phone. With the mixer shared, a voice behaves the
+same on both, the desktop a game is developed on exercises the code Android ships, and a voice no
+longer opens a logical device. The costs: about a burst more latency than SDL's own mixing, and float
+samples at twice the memory of 16-bit.
 
 **One engine on iOS, owned by one thread.** An engine per music track would mean every track builds,
 starts and stops an engine, each touching the output unit from its own thread, and after a configuration
@@ -433,8 +454,8 @@ ahead, and it samples the same managed curve.
 - On iOS, if the audio server stalls *after* output is up, without a reset, an engine restart on the audio
   thread can still reach the RPC timeout. It's the only call that reaches the output unit after startup,
   it's off the game thread, and most such stalls end in a media-services reset, which is handled.
-- A desktop voice whose stream couldn't open stays silent until it's made again; voices don't reopen
-  their streams.
+- On desktop and Android a voice's `IsPlaying` turns false when its last frame is mixed, which is
+  before it's heard by what's queued (about 15 to 20 ms on a typical Windows device).
 - Playing a sound faster than it was recorded folds its highest frequencies back as noise (aliasing):
   no platform's resampler here filters first. It isn't heard on most effects up to about an octave.
 - On iOS, the first time a voice's rate leaves 1 while it plays, what it was playing is cut off (it

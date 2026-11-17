@@ -311,6 +311,9 @@ proposal or were learned on the way:
   it's queued. Found by timing plays in a desktop build; the first build played at twice the rate
   and never ended.
 - **The Android mixer keeps a gain for each channel**, as planned for pan.
+- **Desktop moved to the mixer afterwards** (the next pull request): desktop voices are mixed by the
+  same code as Android's and played through one SDL stream, so the frequency ratio and the flush
+  above are gone, and pan is no longer large on desktop: it's the two gains, on both platforms.
 
 ### The iOS questions, answered on the simulator
 

@@ -16,11 +16,10 @@ internal static class SoundDecoder
 {
     /// <summary>
     /// <paramref name="file"/>'s samples as 16-bit little-endian interleaved PCM bytes, with its rate
-    /// and channel count. <paramref name="pinned"/> puts the PCM on the pinned heap, for a native
-    /// mixer that reads it while it plays.
+    /// and channel count.
     /// </summary>
     /// <exception cref="InvalidDataException">The file isn't a sound this reads, or is damaged.</exception>
-    public static (byte[] Pcm, int SampleRate, int Channels) Decode(byte[] file, bool pinned = false)
+    public static (byte[] Pcm, int SampleRate, int Channels) Decode(byte[] file)
     {
         using AudioDecoder decoder = AudioDecoder.Open(file);
         int channels = decoder.Channels;
@@ -34,7 +33,7 @@ internal static class SoundDecoder
                 throw new InvalidDataException($"The sound is too long to decode at once: {frames} frames.");
             }
 
-            byte[] pcm = GC.AllocateUninitializedArray<byte>((int)bytes, pinned);
+            byte[] pcm = GC.AllocateUninitializedArray<byte>((int)bytes);
             int read = decoder.Read(MemoryMarshal.Cast<byte, short>(pcm.AsSpan()));
             if (read != frames)
             {
@@ -52,7 +51,7 @@ internal static class SoundDecoder
             whole.Write(chunk, 0, count * channels * sizeof(short));
         }
 
-        byte[] result = GC.AllocateUninitializedArray<byte>((int)whole.Length, pinned);
+        byte[] result = GC.AllocateUninitializedArray<byte>((int)whole.Length);
         whole.GetBuffer().AsSpan(0, result.Length).CopyTo(result);
         return (result, decoder.SampleRate, channels);
     }

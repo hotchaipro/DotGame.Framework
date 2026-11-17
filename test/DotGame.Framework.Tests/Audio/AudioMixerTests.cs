@@ -1,6 +1,5 @@
 // Copyright (c) 2026 Hot Chai Games LLC. Licensed under the MIT License.
 
-using DotGame.Framework.Android.Audio;
 using DotGame.Framework.Platform;
 using DotGame.Framework.Platform.Audio;
 using DotGame.Framework.Platform.Common.Audio;
@@ -9,7 +8,7 @@ using Xunit;
 namespace DotGame.Framework.Tests.Audio;
 
 /// <summary>
-/// Android's sound-effect mixer, driven the way its audio thread drives
+/// Android's and desktop's sound-effect mixer, driven the way its audio thread drives
 /// it: voices play, stop and pause from the "game thread" (the test),
 /// and each <see cref="AudioMixer.Mix"/> call is one burst.
 /// </summary>
@@ -81,7 +80,7 @@ public sealed class AudioMixerTests
     public void Mono_plays_on_both_channels()
     {
         var mixer = new AudioMixer();
-        var voice = CreateVoice(mixer, new SoundStrategy([0.25f, -0.5f], 1, TimeSpan.FromMilliseconds(2)));
+        var voice = CreateVoice(mixer, new MixerSoundStrategy([0.25f, -0.5f], 1, TimeSpan.FromMilliseconds(2)));
         var output = new float[Burst * 2];
 
         voice.Play();
@@ -97,7 +96,7 @@ public sealed class AudioMixerTests
         var output = new float[Burst * 2];
 
         // Far more voices than Android allows AudioTracks
-        var voices = new VoiceStrategy[300];
+        var voices = new MixerVoiceStrategy[300];
         for (int i = 0; i < voices.Length; i++)
         {
             voices[i] = CreateVoice(mixer, Stereo(0.001f, 0.002f));
@@ -186,7 +185,7 @@ public sealed class AudioMixerTests
     {
         var mixer = new AudioMixer();
         var sound = Stereo(1f, 1f, 2f, 2f, 3f, 3f, 4f, 4f);
-        var voice = new VoiceStrategy(mixer, sound, Rate, TimeSpan.FromMilliseconds(1), TimeSpan.FromMilliseconds(2));
+        var voice = new MixerVoiceStrategy(mixer, sound, Rate, TimeSpan.FromMilliseconds(1), TimeSpan.FromMilliseconds(2));
         var output = new float[Burst * 2];
 
         voice.Play();
@@ -314,7 +313,7 @@ public sealed class AudioMixerTests
     public void At_half_the_rate_a_voice_takes_twice_as_long_and_passes_between_its_frames()
     {
         var mixer = new AudioMixer();
-        var voice = CreateVoice(mixer, new SoundStrategy([0f, 1f, 2f, 3f, 4f, 5f, 6f, 7f], 1, TimeSpan.FromMilliseconds(8)));
+        var voice = CreateVoice(mixer, new MixerSoundStrategy([0f, 1f, 2f, 3f, 4f, 5f, 6f, 7f], 1, TimeSpan.FromMilliseconds(8)));
         var output = new float[16 * 2];
 
         voice.SetPlaybackRate(0.5f);
@@ -361,7 +360,7 @@ public sealed class AudioMixerTests
             int frames)
         {
             var mixer = new AudioMixer();
-            var voice = CreateVoice(mixer, new SoundStrategy(samples, 1, TimeSpan.FromSeconds((double)samples.Length / Rate)));
+            var voice = CreateVoice(mixer, new MixerSoundStrategy(samples, 1, TimeSpan.FromSeconds((double)samples.Length / Rate)));
             var output = new float[frames * 2];
             voice.SetPlaybackRate(rate);
             voice.Play();
@@ -390,7 +389,7 @@ public sealed class AudioMixerTests
             ramp[i] = i;
         }
 
-        var voice = CreateVoice(mixer, new SoundStrategy(ramp, 1, TimeSpan.FromMilliseconds(64)));
+        var voice = CreateVoice(mixer, new MixerSoundStrategy(ramp, 1, TimeSpan.FromMilliseconds(64)));
         var output = new float[8 * 2];
 
         voice.Play();
@@ -412,7 +411,7 @@ public sealed class AudioMixerTests
     public void A_looping_voice_at_a_rate_starts_over_and_keeps_playing()
     {
         var mixer = new AudioMixer();
-        var voice = CreateVoice(mixer, new SoundStrategy([1f, 1f, 1f, 1f, 1f, 1f], 1, TimeSpan.FromMilliseconds(6)));
+        var voice = CreateVoice(mixer, new MixerSoundStrategy([1f, 1f, 1f, 1f, 1f, 1f], 1, TimeSpan.FromMilliseconds(6)));
         var output = new float[20 * 2];
 
         voice.SetLooping(true);
@@ -437,10 +436,10 @@ public sealed class AudioMixerTests
         }
     }
 
-    private static SoundStrategy Stereo(
+    private static MixerSoundStrategy Stereo(
         params float[] samples)
     {
-        return new SoundStrategy(samples, 2, TimeSpan.FromSeconds((double)samples.Length / 2 / Rate));
+        return new MixerSoundStrategy(samples, 2, TimeSpan.FromSeconds((double)samples.Length / 2 / Rate));
     }
 
     private static float[] Ones(
@@ -451,10 +450,10 @@ public sealed class AudioMixerTests
         return samples;
     }
 
-    private static VoiceStrategy CreateVoice(
+    private static MixerVoiceStrategy CreateVoice(
         AudioMixer mixer,
-        SoundStrategy sound)
+        MixerSoundStrategy sound)
     {
-        return new VoiceStrategy(mixer, sound, Rate, TimeSpan.Zero, sound.Duration);
+        return new MixerVoiceStrategy(mixer, sound, Rate, TimeSpan.Zero, sound.Duration);
     }
 }

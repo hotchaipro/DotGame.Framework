@@ -31,7 +31,10 @@ internal sealed class SoundLoader : IContentLoader<Sound>
         // a lossy one Ogg Opus, decoded by DotGame.AudioCodecs as on Android.
         var (pcmData, freq, channels, duration) = DecodeFile(fullPath);
 
-        var soundStrategy = new SoundStrategy(pcmData, freq, channels, duration);
+        // Convert once to the float samples the mixer adds up, at its rate, so playing them needs
+        // no conversion
+        var samples = PcmConverter.ToFloat(pcmData, channels, freq, AudioOutput.SampleRate, out int outputChannels);
+        var soundStrategy = new MixerSoundStrategy(samples, outputChannels, duration);
 
         Trace.Write(0xbd787d8e, $"[SoundLoader] Loaded audio ({duration.TotalSeconds:F2}s, {freq}Hz, {channels}ch)");
 
@@ -43,8 +46,7 @@ internal sealed class SoundLoader : IContentLoader<Sound>
     {
         var file = System.IO.File.ReadAllBytes(fullPath);
 
-        // NOTE: On the pinned heap, as SDL reads it while voices play
-        var (pcm, sampleRate, channels) = SoundDecoder.Decode(file, pinned: true);
+        var (pcm, sampleRate, channels) = SoundDecoder.Decode(file);
 
         return (pcm, sampleRate, channels, TimeSpan.FromSeconds((double)(pcm.Length / (channels * sizeof(short))) / sampleRate));
     }

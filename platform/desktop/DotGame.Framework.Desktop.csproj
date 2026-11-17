@@ -24,6 +24,7 @@
     <!-- Decodes audio in managed code, with DotGame.AudioCodecs (see the shared project) -->
     <PropertyGroup>
         <DotGameManagedAudioDecoding>true</DotGameManagedAudioDecoding>
+        <DotGameSoundMixer>true</DotGameSoundMixer>
     </PropertyGroup>
     <Import Project="..\shared\DotGame.Framework.Platform.Common.projitems" Label="Shared" />
     <Import Project="..\shared\DefaultShaders.targets" />

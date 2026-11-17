@@ -3,12 +3,14 @@
 using System;
 using System.Threading;
 
-namespace DotGame.Framework.Android.Audio;
+namespace DotGame.Framework.Platform.Common.Audio;
 
 /// <summary>
-/// Mixes every Android sound voice into one interleaved stereo float
-/// stream, which <c>AudioOutput</c> writes to the
-/// device's single sound-effect <c>AudioTrack</c>.
+/// Mixes every sound voice into one interleaved stereo float stream,
+/// on the platforms that mix sounds themselves: Android, whose
+/// <c>AudioOutput</c> writes it to the device's single sound-effect
+/// <c>AudioTrack</c>, and desktop, whose <c>AudioOutput</c> queues it
+/// in one SDL stream.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -18,7 +20,7 @@ namespace DotGame.Framework.Android.Audio;
 /// voice is created; playing allocates nothing.
 /// </para>
 /// <para>
-/// This class has no Android dependencies, so the framework tests
+/// This class has no platform dependencies, so the framework tests
 /// compile it in and drive <see cref="Mix"/> directly.
 /// See <c>docs/architecture/audio.md</c>.
 /// </para>
@@ -26,7 +28,7 @@ namespace DotGame.Framework.Android.Audio;
 internal sealed class AudioMixer
 {
     private readonly Lock _voicesLock = new();
-    private VoiceStrategy[] _voices = [];
+    private MixerVoiceStrategy[] _voices = [];
     private Action? _voiceStarted;
 
     /// <summary>
@@ -41,12 +43,12 @@ internal sealed class AudioMixer
     }
 
     internal void Register(
-        VoiceStrategy voice)
+        MixerVoiceStrategy voice)
     {
         lock (this._voicesLock)
         {
             var voices = this._voices;
-            var updated = new VoiceStrategy[voices.Length + 1];
+            var updated = new MixerVoiceStrategy[voices.Length + 1];
             Array.Copy(voices, updated, voices.Length);
             updated[voices.Length] = voice;
             Volatile.Write(ref this._voices, updated);
@@ -54,7 +56,7 @@ internal sealed class AudioMixer
     }
 
     internal void Unregister(
-        VoiceStrategy voice)
+        MixerVoiceStrategy voice)
     {
         lock (this._voicesLock)
         {
@@ -65,7 +67,7 @@ internal sealed class AudioMixer
                 return;
             }
 
-            var updated = new VoiceStrategy[voices.Length - 1];
+            var updated = new MixerVoiceStrategy[voices.Length - 1];
             Array.Copy(voices, 0, updated, 0, index);
             Array.Copy(voices, index + 1, updated, index, voices.Length - index - 1);
             Volatile.Write(ref this._voices, updated);

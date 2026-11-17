@@ -44,4 +44,16 @@
         <Compile Include="$(MSBuildThisFileDirectory)Audio\OpusMusicReader.cs" />
     </ItemGroup>
     <Import Project="$(MSBuildThisFileDirectory)..\..\eng\DotGame.AudioCodecs.targets" Condition="'$(DotGameManagedAudioDecoding)' == 'true'" />
+
+    <!--
+        The sound mixer, for the platforms that mix their sounds themselves and hand one stream to the
+        device, which set DotGameSoundMixer before importing this: Android and desktop. iOS and the web
+        have a mixer of the system's.
+    -->
+    <ItemGroup Condition="'$(DotGameSoundMixer)' == 'true'">
+        <Compile Include="$(MSBuildThisFileDirectory)Audio\AudioMixer.cs" />
+        <Compile Include="$(MSBuildThisFileDirectory)Audio\MixerSoundStrategy.cs" />
+        <Compile Include="$(MSBuildThisFileDirectory)Audio\MixerVoiceStrategy.cs" />
+        <Compile Include="$(MSBuildThisFileDirectory)Audio\PcmConverter.cs" />
+    </ItemGroup>
 </Project>

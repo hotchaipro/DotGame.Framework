@@ -1,12 +1,12 @@
 // Copyright (c) 2026 Hot Chai Games LLC. Licensed under the MIT License.
 
-using DotGame.Framework.Android.Audio;
+using DotGame.Framework.Platform.Common.Audio;
 using Xunit;
 
 namespace DotGame.Framework.Tests.Audio;
 
 /// <summary>
-/// Android's load-time conversion to float at the output rate, against a
+/// Android's and desktop's load-time conversion to float at the output rate, against a
 /// plain per-sample version of the same interpolation.
 /// </summary>
 public sealed class PcmConverterTests

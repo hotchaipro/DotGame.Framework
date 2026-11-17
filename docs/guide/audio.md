@@ -174,9 +174,8 @@ voice moves to another player, which cuts off what it was playing, so set the ra
 
 ## Looping a sound
 
-Play a voice with `Play(loop: true)` for an engine's hum or ambience. It plays until you call `Stop`. On
-desktop, the sound is queued a quarter of a second ahead each frame, so only a longer stall than that leaves
-a gap. For long tracks, use `Music`.
+Play a voice with `Play(loop: true)` for an engine's hum or ambience. It plays until you call `Stop`. For
+long tracks, use `Music`.
 
 ## The player's own music
 

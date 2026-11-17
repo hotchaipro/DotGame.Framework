@@ -5,7 +5,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics;
 
-namespace DotGame.Framework.Android.Audio;
+namespace DotGame.Framework.Platform.Common.Audio;
 
 /// <summary>
 /// Converts decoded 16-bit PCM to the float samples
@@ -14,10 +14,10 @@ namespace DotGame.Framework.Android.Audio;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Android sounds are built at 48 kHz, the rate most devices mix at, so
-/// a load is usually only the conversion to float, eight samples at a
-/// time. On a Pixel 3a that takes about 22 ms for a 55-second stereo
-/// bank.
+/// Sounds are built at 48 kHz, the rate most devices mix at (and the
+/// rate desktop's output is opened at), so a load is usually only the
+/// conversion to float, eight samples at a time. On a Pixel 3a that
+/// takes about 22 ms for a 55-second stereo bank.
 /// </para>
 /// <para>
 /// Devices that mix at another rate (some run at 44.1 kHz) get a 4-point
@@ -50,7 +50,7 @@ internal static class PcmConverter
         outputChannels = Math.Min(channels, 2);
         int sourceFrames = pcm16.Length / (channels * 2);
 
-        // NOTE: Android is always little-endian
+        // NOTE: Every platform this runs on is little-endian
         var source = MemoryMarshal.Cast<byte, short>(pcm16.Slice(0, sourceFrames * channels * 2));
         float[] samples = Widen(source, channels, outputChannels, sourceFrames);
 

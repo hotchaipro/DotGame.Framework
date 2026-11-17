@@ -3,12 +3,12 @@
 using System;
 using DotGame.Framework.Platform.Audio;
 
-namespace DotGame.Framework.Android.Audio;
+namespace DotGame.Framework.Platform.Common.Audio;
 
 /// <summary>
-/// Android representation of a decoded sound: interleaved float
-/// samples at the mixer's output rate, shared by every voice that
-/// plays the sound.
+/// A decoded sound on a platform that mixes sounds itself (Android
+/// and desktop): interleaved float samples at the mixer's output rate,
+/// shared by every voice that plays the sound.
 /// </summary>
 /// <remarks>
 /// The loader converts the sound once, at load, to the rate and
@@ -16,9 +16,9 @@ namespace DotGame.Framework.Android.Audio;
 /// multiply-add per sample with no conversion. Mono sounds stay mono;
 /// the mixer writes them to both channels.
 /// </remarks>
-internal sealed class SoundStrategy : ISoundStrategy
+internal sealed class MixerSoundStrategy : ISoundStrategy
 {
-    internal SoundStrategy(
+    internal MixerSoundStrategy(
         float[] samples,
         int channels,
         TimeSpan duration)
