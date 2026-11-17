@@ -76,6 +76,70 @@
         </ItemGroup>
     </Target>
 
+    <!--
+        The platform's scripts (wwwroot/_dotgame/*.js) as a Release build serves them: without their
+        comments and indentation (pipeline/tasks/_StripScriptComments.cs), which are most of their
+        download. Lines stay where they are, so crash reports point at the source. The copies replace
+        the sources as this project's static web assets, so their fingerprints, integrity and
+        compressed copies are the served files'. A game built from the packages gets the same from
+        the package's targets (packaging/buildTransitive/DotGame.Framework.WebGL).
+    -->
+    <Import Project="..\..\pipeline\ContentPipeline.Tasks.targets" />
+    <UsingTask TaskName="_StripScriptComments" AssemblyFile="$(FrameworkContentPipelineTasksAssembly)" />
+
+    <Target Name="_StripWebScriptComments"
+            BeforeTargets="ResolveProjectStaticWebAssets"
+            DependsOnTargets="_BuildContentPipelineTasks"
+            Condition="'$(Configuration)' == 'Release' and '$(NoBuild)' != 'true'">
+        <!--
+            One folder for a game's build and its AOT publish's nested build (eng/DotGame.BuildRoot.props
+            gives that one obj-nested): the game's publish takes this project's assets from both, and
+            two files for one script would be two assets on one path.
+        -->
+        <PropertyGroup>
+            <_StrippedWebScriptsRoot>$(IntermediateOutputPath)dotgame-scripts/</_StrippedWebScriptsRoot>
+            <_StrippedWebScriptsRoot Condition="'$(DotGameBuildRoot)' != ''">$(DotGameBuildRoot)$(MSBuildProjectName)/dotgame-scripts/$(Configuration)/</_StrippedWebScriptsRoot>
+            <_StrippedWebScriptsRoot>$([System.IO.Path]::GetFullPath('$([System.IO.Path]::Combine('$(MSBuildProjectDirectory)', '$(_StrippedWebScriptsRoot)'))'))</_StrippedWebScriptsRoot>
+        </PropertyGroup>
+        <ItemGroup>
+            <_WebScript Include="wwwroot\_dotgame\*.js" />
+        </ItemGroup>
+
+        <_StripScriptComments Scripts="@(_WebScript)" OutputDirectory="$(_StrippedWebScriptsRoot)_dotgame">
+            <Output TaskParameter="StrippedScripts" ItemName="_StrippedWebScript" />
+        </_StripScriptComments>
+
+        <ItemGroup>
+            <Content Remove="@(_WebScript)" />
+            <_StrippedWebScriptCandidate Include="@(_StrippedWebScript)" RelativePath="_dotgame/%(Filename)#[.{fingerprint}]!%(Extension)" />
+            <FileWrites Include="@(_StrippedWebScript)" />
+        </ItemGroup>
+
+        <DefineStaticWebAssets
+            CandidateAssets="@(_StrippedWebScriptCandidate)"
+            SourceType="Discovered"
+            SourceId="$(PackageId)"
+            ContentRoot="$(_StrippedWebScriptsRoot)"
+            BasePath="$(StaticWebAssetBasePath)"
+            AssetKind="All"
+            AssetMode="All"
+            AssetRole="Primary"
+            AssetMergeSource="$(StaticWebAssetMergeTarget)"
+            FingerprintCandidates="false"
+            CopyToOutputDirectory="Never"
+            CopyToPublishDirectory="PreserveNewest">
+            <Output TaskParameter="Assets" ItemName="StaticWebAsset" />
+            <Output TaskParameter="Assets" ItemName="_StrippedWebScriptAsset" />
+        </DefineStaticWebAssets>
+
+        <DefineStaticWebAssetEndpoints
+            CandidateAssets="@(_StrippedWebScriptAsset)"
+            ExistingEndpoints="@(StaticWebAssetEndpoint)"
+            ContentTypeMappings="@(StaticWebAssetContentTypeMapping)">
+            <Output TaskParameter="Endpoints" ItemName="StaticWebAssetEndpoint" />
+        </DefineStaticWebAssetEndpoints>
+    </Target>
+
     <PropertyGroup>
         <DefaultShaderTarget>glsl</DefaultShaderTarget>
         <DefaultShaderNamespace>DotGame.Framework.WebGL.Graphics</DefaultShaderNamespace>
