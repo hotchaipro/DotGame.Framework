@@ -845,6 +845,8 @@ internal sealed class AudioServiceStrategy : IAudioServiceStrategy, IMusicPlayba
     /// <see cref="ReleaseSlot"/>. Called on the game thread by voices
     /// and on a track's background queue by music.
     /// </summary>
+    /// <param name="format">The format the slot's node is connected with.</param>
+    /// <param name="owner">The voice or track that holds the slot.</param>
     /// <param name="hasRateUnit">Whether the slot has a varispeed unit between its node and the
     /// mixer, for a voice that plays at a rate other than as recorded
     /// (<see cref="GetSlotRateUnit"/>). A slot keeps the kind it was made as.</param>
