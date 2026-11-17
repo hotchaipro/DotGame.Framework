@@ -143,6 +143,35 @@ for the level's sounds under the effects control. Every volume in the chain mult
 without a parent is under `MasterVolumeControl`. Dispose a control after what's under it: what's still
 under it goes silent.
 
+## Higher, lower, faster, slower
+
+A voice's [`PlaybackRate`](../api/Framework/SoundVoice.md#playbackrate) is how fast it plays its
+sound, as a multiple of the recorded speed. 1 is as recorded; 2 is twice as fast, an octave higher and
+half as long; 0.5 is half as fast, an octave lower and twice as long. The pitch and the length always
+change together. The rate stays on the voice until you change it, and a change while the voice plays
+is heard at once. It's clamped to 0.25 to 4.
+
+A sound that repeats (a footstep, a coin) tires the ear at one pitch. A few percent of difference from
+one play to the next is enough:
+
+```csharp
+private void PlayCoin()
+{
+    var voice = this.coinVoices[this.nextCoinVoice];
+    voice.PlaybackRate = 0.96f + (0.08f * Random.Shared.NextSingle());
+    voice.Play();
+    this.nextCoinVoice = (this.nextCoinVoice + 1) % this.coinVoices.Length;
+}
+```
+
+For a musical step, a rate of `MathF.Pow(2f, semitones / 12f)` is that many semitones up (or down, for
+a negative number): one recorded note can play a tune.
+
+Playing a sound much faster than it was recorded can add a harsh edge to a bright sound; if you need
+it more than about an octave up, record it higher. On iOS, the first time a voice's rate leaves 1 the
+voice moves to another player, which cuts off what it was playing, so set the rate before you play.
+`Music` has no rate.
+
 ## Looping a sound
 
 Play a voice with `Play(loop: true)` for an engine's hum or ambience. It plays until you call `Stop`. On

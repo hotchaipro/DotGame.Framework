@@ -17,7 +17,7 @@ The types are in [`framework/Audio`](../../framework/Audio):
 |---|---|
 | [`AudioService`](../../framework/Audio/AudioService.cs) | `Game.Audio`. Makes voices (`CreateVoice`) and volume controls (`CreateVolumeControl`), holds `MasterVolumeControl`, and answers `ShouldPlayMusic`. |
 | [`Sound`](../../framework/Audio/Sound.cs) | Content: one decoded buffer. It has no notion of sub-ranges; a voice plays an `(offset, duration)` segment of it, chosen when the voice is made. |
-| [`SoundVoice`](../../framework/Audio/SoundVoice.cs) | Plays one copy of its segment at a time: `Play(loop)`, `Pause`, `Resume`, `Stop`, `IsPlaying`, `IsPaused`. Overlapping copies take several voices. |
+| [`SoundVoice`](../../framework/Audio/SoundVoice.cs) | Plays one copy of its segment at a time: `Play(loop)`, `Pause`, `Resume`, `Stop`, `IsPlaying`, `IsPaused`, and `PlaybackRate`, how fast it plays (below). Overlapping copies take several voices. |
 | [`Music`](../../framework/Audio/Music.cs) | Content: a streamed track. `Play(start, end, loopPoint, loop)`, `PrepareAsync`, `Unprepare`, `Pause`, `Resume`, `Stop`, `IsPlaying`, `IsPaused`, `Duration`. |
 | [`VolumeControl`](../../framework/Audio/VolumeControl.cs) | A volume, or a fade to one, in a tree under `MasterVolumeControl`. A voice or a track plays at the product of its control's volume and every parent's. |
 | [`FadeCurve`](../../framework/Audio/FadeCurve.cs) | The shape of a fade (`Linear`, `Exponential`, `Sine`, `SCurve`, or a game's own subclass), evaluated by managed code on every platform. |
@@ -30,6 +30,10 @@ volume), keep the bookkeeping that's the same everywhere, and forward to the pla
   reach the platform at all.
 - **Pause and resume.** `SoundVoice` and `Music` track `IsPaused` themselves, so `Resume` is a no-op unless
   the game paused, and `Play` on a paused voice or track starts over rather than resuming.
+- **Playback rate.** `SoundVoice.PlaybackRate` is a multiple of the recorded speed, kept on the voice
+  across plays, clamped to 0.25 to 4 (what the narrowest platform, iOS's varispeed unit, offers), with
+  NaN refused. The voice tells the platform only when the value changes, since a pool sets it on every
+  play. The sound is resampled, so pitch and length change together.
 - **Volume control lifetimes.** A `VolumeControl` counts what's under it (child controls, voices, tracks).
   Disposing it sets its platform volume to 0 and keeps the platform control until the count reaches 0,
   so nothing under it changes behavior or dangles. The master control can't be disposed.
@@ -43,7 +47,7 @@ Each platform implements the internal interfaces in
 |---|---|
 | `IAudioServiceStrategy` | `OnInitialize`, the master control, `CreateVolumeControl`, `CreateVoice(sound, offset, duration)`, `ShouldPlayMusic`. |
 | `ISoundStrategy` | The decoded audio, shared by every voice made from it. The framework never copies it per voice or per play. |
-| `IVoiceStrategy` | `Play`, `Stop`, `Pause`, `SetLooping`, `SetVolumeControl`, `IsPlaying`. |
+| `IVoiceStrategy` | `Play`, `Stop`, `Pause`, `SetLooping`, `SetPlaybackRate`, `SetVolumeControl`, `IsPlaying`. |
 | `IMusicStrategy` | The music state machine (below): `Play`, `Prepare`, `Unprepare`, `Stop`, `Pause`, `State`, `IsPlaying`, `IsPaused`, `Duration`. |
 | `IVolumeControlStrategy` | `Volume`, `Parent`, `FadeTo(volume, duration, curve)`. |
 
@@ -54,6 +58,9 @@ The invariants every implementation keeps:
   it to the decoded audio. After that, `Play`, `Stop` and `Pause` allocate nothing on the managed heap.
 - **`IsPlaying` is true as soon as `Play` returns**, not when an audio thread gets to it, and turns false
   at the segment's end (unless looping), on `Stop` and on `Pause`.
+- **A rate is heard at once, and a cue ends when it ends.** `SetPlaybackRate` on a playing voice
+  changes what's heard within an audio buffer, with no jump in the sound, and `IsPlaying` turns false
+  at the segment's length divided by the rate it played at.
 - **Music never blocks its caller.** Every music operation can be called from any thread, in any order,
   any number of times, including from lifecycle callbacks where blocking risks an ANR. File reads,
   decoding and native setup and teardown run on a background queue.
@@ -152,6 +159,11 @@ Desktop uses SDL3's audio. SDL mixes every open stream into the device itself.
   the stream and queues a pointer into the pinned PCM with `SDL_PutAudioStreamDataNoCopy`: no copy, no
   allocation. A looping voice keeps a quarter of a second queued ahead, topped up each frame, so only a
   frame longer than that leaves a gap.
+- **Rate.** `SDL_SetAudioStreamFrequencyRatio` on the voice's stream: SDL resamples as it reads. A
+  stream that resamples holds its last frames back for the frames it expects next, so a cue that isn't
+  looping is flushed as it's queued (`SDL_FlushAudioStream`); without that the queue never empties and
+  the voice never finishes. A looping voice's quarter second ahead is in the sound's own bytes, so it's
+  multiplied by the rate.
 - **Volume.** The audio service keeps a list of voices that have played and, once a frame
   (`UpdateVoices`, on the game thread), sets each one's stream gain from its control, dropping the voices
   that have finished. There's deliberately no SDL get callback: managed code on SDL's audio thread would
@@ -203,7 +215,13 @@ managed object that costs nothing on the platform, so a game can make as many as
   reaches the segment's end. Neither side locks, and `Play` allocates nothing.
 - **Volume.** The mixer reads each playing voice's effective volume once per burst and ramps linearly
   from the last burst's value across this one, so changes and fades never click and need no game-thread
-  polling.
+  polling. The left and right gains are kept apart, though they're the same, so that a pan would
+  change what they're set to and not the mixing.
+- **Rate.** A voice's rate is a volatile field read once per burst. At 1, with the position on a whole
+  frame, the samples are added as they are, as before. Otherwise the position is fractional and steps
+  by the rate, and each output frame is read through the same 4-point Hermite interpolator the sounds
+  are converted with; the frames past a segment's ends are its end frames, or its other end's when it
+  loops, so a loop has no seam. A rate changed mid-play carries on from the position it had reached.
 
 The framework tests compile `AudioMixer`, `VoiceStrategy`, `SoundStrategy` and `PcmConverter` in, since
 they have no Android types, and test mixing and conversion on the desktop.
@@ -279,6 +297,18 @@ voices of a segment share one float buffer
 ([`SoundStrategy.GetSegmentBuffer`](../../platform/ios/Audio/SoundStrategy.cs)), converted once when the
 first voice is made, so extra voices cost a node each, not a copy of the audio.
 
+**Rate.** A voice plays at a rate other than as recorded through an `AVAudioUnitVarispeed` between its
+node and the mixer. A node is connected once, so the unit can't be added to a slot that has none: a
+slot is made with a unit or without one and keeps that kind (`AcquireSlot(format, owner, hasRateUnit)`),
+and the first time a voice's rate leaves 1 it stops, takes a slot with a unit and releases its own
+([`VoiceStrategy.SetPlaybackRate`](../../platform/ios/Audio/VoiceStrategy.cs)). It keeps that slot,
+back at 1 too. A play made before the audio thread has wired the new node starts when it's wired, as
+a pool's new voice does. So voices that never change their rate, which is most of them, play straight
+into the mixer as they always have, and no unit runs for them. The unit's rate is a parameter, set on
+the game thread and again as the node is wired. The node's volume still reaches the mixer through the
+unit, and the buffer's completion still comes when the audio has played at its rate (both measured
+on the simulator, with a tap on the mixer: `docs/design/sound-playback-rate.md`).
+
 **Volume.** A player node has no render callback to poll from, so a second thread, "DotGame Audio
 Volume", applies each playing voice's and track's volume to its node about every 15 ms while anything
 plays, and sleeps until the next start when nothing does.
@@ -321,6 +351,11 @@ through [`AudioBindings`](../../platform/webgl/Audio/AudioBindings.cs).
 - **Voices.** A voice is a cached `GainNode` connected to its volume control's node (or the master's).
   Web Audio source nodes are one-shot, so each `Play` makes an `AudioBufferSourceNode` in JavaScript over
   the shared buffer; nothing is allocated on the managed side.
+- **Rate.** The voice's rate is each source's `playbackRate`, set as the source is made and on the
+  playing source when it changes. A source's offset, duration and loop points are in seconds of the
+  buffer, which the rate doesn't change. The time the slice began (`startedAt`, which a pause and a
+  change of looping read the position from) is kept in the rate's own terms and moved when the rate
+  changes, so the position stays where it was.
 - **Music** streams through Web Audio alone: a worker
   ([`music-worker.js`](../../platform/webgl/wwwroot/_dotgame/music-worker.js)) fetches the Ogg file,
   demuxes it and decodes it with WebCodecs' `AudioDecoder`, applying the range and loop policy, and an
@@ -400,6 +435,12 @@ ahead, and it samples the same managed curve.
   it's off the game thread, and most such stalls end in a media-services reset, which is handled.
 - A desktop voice whose stream couldn't open stays silent until it's made again; voices don't reopen
   their streams.
+- Playing a sound faster than it was recorded folds its highest frequencies back as noise (aliasing):
+  no platform's resampler here filters first. It isn't heard on most effects up to about an octave.
+- On iOS, the first time a voice's rate leaves 1 while it plays, what it was playing is cut off (it
+  moves to a slot with a varispeed unit). What a varispeed unit costs on a device hasn't been
+  measured; only voices that use a rate have one.
+- Music has no playback rate, and nothing has a pan.
 - On Android, sound effects take no audio focus and music takes it only to play; there's no ducking.
 - On the web, a sound played before the player's first gesture is dropped, and browsers without WebCodecs'
   Opus decoder, `AudioWorklet` or `Worker` play no music.

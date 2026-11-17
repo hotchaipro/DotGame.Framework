@@ -44,6 +44,18 @@ public bool IsPlaying { get; }
 
 `true` while the voice is actively producing audio. Transitions to `false` when playback reaches the end of the cue, when [`Stop`](#stop) is called, or when [`Pause`](#pause) is called.
 
+### PlaybackRate
+
+```csharp
+public float PlaybackRate { get; set; }
+```
+
+How fast the voice plays its sound, as a multiple of the recorded speed: 1 is as recorded, 2 is twice as fast and an octave higher, 0.5 is half as fast and an octave lower. The pitch and the length change together. A value outside [`MinPlaybackRate`](#minplaybackrate) to [`MaxPlaybackRate`](#maxplaybackrate) is clamped to it.
+
+**Throws `ArgumentOutOfRangeException`:** The value is not a number.
+
+The rate is the voice's own, like its volume control: [`Play`](#play), [`Stop`](#stop), [`Pause`](#pause) and [`Resume`](#resume) leave it as it is, and a change while the voice plays is heard at once. A few percent of difference from one play to the next keeps a sound that repeats from tiring; a step of `n` semitones is a rate of `MathF.Pow(2f, n / 12f)`.
+
 ### VolumeControl
 
 ```csharp
@@ -55,6 +67,24 @@ Types: [`VolumeControl`](VolumeControl.md)
 An optional volume control that drives this voice's gain. Share one control across voices to group their volume, or create a dedicated control to vary one voice independently.
 
 **Throws `ObjectDisposedException`:** The control has been disposed.
+
+## Fields
+
+### MaxPlaybackRate
+
+```csharp
+public const float MaxPlaybackRate = 4f;
+```
+
+The fastest [`PlaybackRate`](#playbackrate): four times the recorded speed, two octaves up.
+
+### MinPlaybackRate
+
+```csharp
+public const float MinPlaybackRate = 0.25f;
+```
+
+The slowest [`PlaybackRate`](#playbackrate): a quarter of the recorded speed, two octaves down.
 
 ## Methods
 

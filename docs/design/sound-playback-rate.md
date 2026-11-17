@@ -1,6 +1,7 @@
 # Design note: playback rate for sounds, and pan
 
-Status: proposed, 2026-11-17. Nothing here is built.
+Status: approved and built, 2026-11-17 (the playback rate; pan is designed here and not built). What
+was built, and where it differs from the proposal, is in "As built" at the end.
 
 In short: add `SoundVoice.PlaybackRate` now, on its own. Design `Pan` now (it's below) and build it
 later, when a game needs it. No helper class for semitones.
@@ -291,3 +292,62 @@ other platforms are checked by ear and by `IsPlaying`'s timing in the sample gam
 4. Guide and architecture pages (`docs/guide/audio.md`, `docs/architecture/audio.md`), API reference.
 5. Blockdown: the guide's syllables take their melody from the rate; repeated effects vary by a few
    percent.
+
+## As built
+
+The API is as proposed: `SoundVoice.PlaybackRate` with `MinPlaybackRate` and `MaxPlaybackRate`,
+`SoundPool.Play(volume, playbackRate)` in DotGame.Toolkit, and
+`SoundPlayer.Play(soundEffect, duckMusic, volume, playbackRate)` in HotChai.Game. How each platform
+does it is in [the audio architecture](../architecture/audio.md). Three things differ from the
+proposal or were learned on the way:
+
+- **iOS: a varispeed unit only for voices that use a rate**, which this note had as the fallback. A
+  slot is made with a unit or without one, and the first time a voice's rate leaves 1 the voice moves
+  to a slot with one. So the audio graph of a game that doesn't use the rate is exactly what it was,
+  and what a unit costs when idle doesn't arise. The price is that a voice playing at that moment is
+  cut off; a game sets the rate before it plays.
+- **Desktop needed a flush.** A stream that resamples holds back its last frames, so at any rate but
+  1 the queue never emptied and the voice never finished. A cue that isn't looping is now flushed as
+  it's queued. Found by timing plays in a desktop build; the first build played at twice the rate
+  and never ended.
+- **The Android mixer keeps a gain for each channel**, as planned for pan.
+
+### The iOS questions, answered on the simulator
+
+A throwaway build (Blockdown on the simulator) put a tap on the engine's mixer, printing the level
+and the zero crossings of what was actually mixed, and played one 0.4 second sound at several rates
+and volumes, printing when `IsPlaying` turned false:
+
+| Rate | Ended after | Expected |
+|---|---|---|
+| 1 (no unit) | 0.45 s | 0.4 s |
+| 2 (its first rate: the move to a slot with a unit) | 0.25 s | 0.2 s, and the new node's wiring |
+| 0.5 | 0.82 s | 0.8 s |
+| 1 (through the unit) | 0.42 s | 0.4 s |
+| 1.5 | 0.27 s | 0.27 s |
+| 4 | 0.10 s | 0.1 s |
+| 0.25 | 1.60 s | 1.6 s |
+
+- **The end is reported at the right moment** with the unit after the node: the table.
+- **The pitch follows the rate**: about 1,250 zero crossings a second as recorded, 1,870 at 1.5 and
+  330 at 0.25.
+- **The node's volume still applies through the unit**: at a rate of 0.25 the loudest fifth of a
+  second measured 0.192, 0.097 and 0.049 at volumes of 1, 0.5 and 0.25, and 0.199 at 1 again.
+
+Not answered, because no device could be reached: what a unit costs on a phone, and whether setting
+its rate can ever wait on the audio server. Only voices that use a rate have a unit, which bounds
+the first; the second is the same kind of call as setting a node's volume, which the volume thread
+does many times a second.
+
+### What was checked, and what wasn't
+
+- Framework tests: the Android mixer at rates (half the frames at twice the rate, twice at half,
+  exact between frames on a straight line, a sine's frequency doubled, a rate changed mid-play going
+  on from where it was, a loop without a seam) and the public property (clamped, NaN refused, kept
+  across plays, sent to the platform only when it changes). Toolkit tests: the pool's overload.
+- Desktop (Windows): each play ended at its length over its rate, from 0.25 to 4.
+- iOS simulator: the trial above.
+- Web: see the pull request for what was run.
+- Not run: Android on a device or an emulator (the mixer is what the tests drive), iOS on a device,
+  and nobody has listened to any of it.
+
