@@ -110,7 +110,7 @@ rows are from memory and should be checked before this note is cited elsewhere.
 
 What the table says:
 
-1. **The unit is settled: a multiplier, 1 as recorded.** Thirteen of fourteen. XNA's octaves are the
+1. **The unit is settled: a multiplier, 1 as recorded.** Every row but one. XNA's octaves are the
    one exception, and MonoGame only keeps them for compatibility.
 2. **The shape is settled too: state on the playing thing**, with the one-shot convenience taking it as
    an argument. That's a property on `SoundVoice` and an overload on `SoundPool.Play`.
