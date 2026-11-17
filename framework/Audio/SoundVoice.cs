@@ -37,6 +37,17 @@ public sealed class SoundVoice : IDisposable
     private readonly Sound _sound;
     private VolumeControl? _volumeControl;
     private bool _isLooping;
+    private float _playbackRate = 1f;
+
+    /// <summary>
+    /// The slowest <see cref="PlaybackRate"/>: a quarter of the recorded speed, two octaves down.
+    /// </summary>
+    public const float MinPlaybackRate = 0.25f;
+
+    /// <summary>
+    /// The fastest <see cref="PlaybackRate"/>: four times the recorded speed, two octaves up.
+    /// </summary>
+    public const float MaxPlaybackRate = 4f;
 
     internal SoundVoice(
         Strategy<IVoiceStrategy> strategy,
@@ -93,6 +104,44 @@ public sealed class SoundVoice : IDisposable
             this._strategy.Interface.SetVolumeControl(value?.Strategy);
 
             previous?.RemoveUser();
+        }
+    }
+
+    /// <summary>
+    /// How fast the voice plays its sound, as a multiple of the recorded speed: 1 is as recorded,
+    /// 2 is twice as fast and an octave higher, 0.5 is half as fast and an octave lower. The pitch
+    /// and the length change together. A value outside <see cref="MinPlaybackRate"/> to
+    /// <see cref="MaxPlaybackRate"/> is clamped to it.
+    /// </summary>
+    /// <remarks>
+    /// The rate is the voice's own, like its volume control: <see cref="Play"/>,
+    /// <see cref="Stop"/>, <see cref="Pause"/> and <see cref="Resume"/> leave it as it is, and a
+    /// change while the voice plays is heard at once. A few percent of difference from one play
+    /// to the next keeps a sound that repeats from tiring; a step of <c>n</c> semitones is a rate
+    /// of <c>MathF.Pow(2f, n / 12f)</c>.
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException">The value is not a number.</exception>
+    public float PlaybackRate
+    {
+        get => this._playbackRate;
+        set
+        {
+            if (float.IsNaN(value))
+            {
+                throw new ArgumentOutOfRangeException(nameof(value), value, "The playback rate must be a number.");
+            }
+
+            float rate = Math.Clamp(value, MinPlaybackRate, MaxPlaybackRate);
+
+            // NOTE: A pool sets it on every play, and on the web this crosses into JavaScript
+            if (rate != this._playbackRate)
+            {
+                this._playbackRate = rate;
+                if (!this._strategy.IsDisposed)
+                {
+                    this._strategy.Interface.SetPlaybackRate(rate);
+                }
+            }
         }
     }
 

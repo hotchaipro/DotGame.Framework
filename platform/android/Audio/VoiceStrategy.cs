@@ -27,6 +27,8 @@ namespace DotGame.Framework.Android.Audio;
 /// the segment's end.</item>
 /// <item><see cref="Pause"/> holds the position until the next
 /// <see cref="Play"/>.</item>
+/// <item><see cref="SetPlaybackRate"/> writes a rate the audio thread
+/// reads once a block.</item>
 /// </list>
 /// <para>
 /// So <see cref="IsPlaying"/> turns true as soon as <see cref="Play"/>
@@ -47,15 +49,20 @@ internal sealed class VoiceStrategy : IVoiceStrategy
     private int _stoppedGeneration;
     private volatile bool _isPaused;
     private volatile bool _isLooping;
+    private volatile float _playbackRate = 1f;
     private volatile PolledVolumeControlStrategy? _volumeControl;
 
     // Written by the audio thread, read by the game thread
     private int _finishedGeneration;
 
     // The audio thread's own
+    // (The position is in frames of the segment, with a fraction once the voice has played at
+    // a rate other than 1. The two gains are the same: they're kept apart so a pan is a change
+    // of what they're set to, not of the mixing.)
     private int _mixedGeneration;
-    private int _position;
-    private float _gain;
+    private double _position;
+    private float _gainLeft;
+    private float _gainRight;
 
     private bool _isDisposed;
 
@@ -106,6 +113,12 @@ internal sealed class VoiceStrategy : IVoiceStrategy
         bool isLooping)
     {
         this._isLooping = isLooping;
+    }
+
+    public void SetPlaybackRate(
+        float rate)
+    {
+        this._playbackRate = rate;
     }
 
     public void Play()
@@ -172,7 +185,7 @@ internal sealed class VoiceStrategy : IVoiceStrategy
             // A new Play: start from the top at the current volume
             this._mixedGeneration = generation;
             this._position = 0;
-            this._gain = this.ReadVolume();
+            this._gainLeft = this._gainRight = this.ReadVolume();
         }
 
         if ((generation == Volatile.Read(ref this._stoppedGeneration))
@@ -184,57 +197,18 @@ internal sealed class VoiceStrategy : IVoiceStrategy
 
         // Ramp from the last block's volume to this one's across
         // the block, so volume changes and fades never click
-        float gain = this._gain;
         float target = this.ReadVolume();
-        float step = (target - gain) / frames;
+        float stepLeft = (target - this._gainLeft) / frames;
+        float stepRight = (target - this._gainRight) / frames;
 
-        int mixed = 0;
-        bool isPlaying = this._frameCount > 0;
-        while (isPlaying && (mixed < frames))
-        {
-            int count = Math.Min(frames - mixed, this._frameCount - this._position);
-            var samples = this._samples;
-            int source = (this._startFrame + this._position) * this._channels;
-            int first = mixed * 2;
-            int last = first + (count * 2);
-
-            if (this._channels == 2)
-            {
-                for (int i = first; i < last; i += 2, source += 2)
-                {
-                    output[i] += samples[source] * gain;
-                    output[i + 1] += samples[source + 1] * gain;
-                    gain += step;
-                }
-            }
-            else
-            {
-                for (int i = first; i < last; i += 2, source++)
-                {
-                    float sample = samples[source] * gain;
-                    output[i] += sample;
-                    output[i + 1] += sample;
-                    gain += step;
-                }
-            }
-
-            mixed += count;
-            this._position += count;
-
-            if (this._position >= this._frameCount)
-            {
-                if (this._isLooping)
-                {
-                    this._position = 0;
-                }
-                else
-                {
-                    isPlaying = false;
-                }
-            }
-        }
-
-        this._gain = gain;
+        // The rate is read once a block. At 1, on a whole frame, the samples are copied as they
+        // are; at any other rate, or once a rate has left the position between frames, they're
+        // read through the interpolator.
+        float rate = this._playbackRate;
+        bool isPlaying = (this._frameCount > 0)
+            && (((rate == 1f) && (this._position == Math.Floor(this._position)))
+                ? this.MixAsRecorded(output, frames, stepLeft, stepRight)
+                : this.MixResampled(output, frames, rate, stepLeft, stepRight));
 
         if (!isPlaying)
         {
@@ -243,6 +217,178 @@ internal sealed class VoiceStrategy : IVoiceStrategy
         }
 
         return true;
+    }
+
+    private bool MixAsRecorded(
+        float[] output,
+        int frames,
+        float stepLeft,
+        float stepRight)
+    {
+        float gainLeft = this._gainLeft;
+        float gainRight = this._gainRight;
+        int position = (int)this._position;
+
+        int mixed = 0;
+        bool isPlaying = true;
+        while (isPlaying && (mixed < frames))
+        {
+            int count = Math.Min(frames - mixed, this._frameCount - position);
+            var samples = this._samples;
+            int source = (this._startFrame + position) * this._channels;
+            int first = mixed * 2;
+            int last = first + (count * 2);
+
+            if (this._channels == 2)
+            {
+                for (int i = first; i < last; i += 2, source += 2)
+                {
+                    output[i] += samples[source] * gainLeft;
+                    output[i + 1] += samples[source + 1] * gainRight;
+                    gainLeft += stepLeft;
+                    gainRight += stepRight;
+                }
+            }
+            else
+            {
+                for (int i = first; i < last; i += 2, source++)
+                {
+                    float sample = samples[source];
+                    output[i] += sample * gainLeft;
+                    output[i + 1] += sample * gainRight;
+                    gainLeft += stepLeft;
+                    gainRight += stepRight;
+                }
+            }
+
+            mixed += count;
+            position += count;
+
+            if (position >= this._frameCount)
+            {
+                if (this._isLooping)
+                {
+                    position = 0;
+                }
+                else
+                {
+                    isPlaying = false;
+                }
+            }
+        }
+
+        this._position = position;
+        this._gainLeft = gainLeft;
+        this._gainRight = gainRight;
+
+        return isPlaying;
+    }
+
+    /// <summary>
+    /// Mixes the voice at a rate other than as recorded: each output frame is read from between
+    /// the segment's frames with the 4-point interpolator the sounds are converted with, and the
+    /// position steps on by the rate. The frames before the segment's first and after its last
+    /// are its own end frames, or its other end's when it loops, so a loop has no seam.
+    /// </summary>
+    private bool MixResampled(
+        float[] output,
+        int frames,
+        float rate,
+        float stepLeft,
+        float stepRight)
+    {
+        float gainLeft = this._gainLeft;
+        float gainRight = this._gainRight;
+        double position = this._position;
+
+        var samples = this._samples;
+        int channels = this._channels;
+        int frameCount = this._frameCount;
+        int lastFrame = frameCount - 1;
+        int start = this._startFrame * channels;
+
+        int mixed = 0;
+        bool isPlaying = true;
+        while (isPlaying && (mixed < frames))
+        {
+            int index = (int)position;
+            float t = (float)(position - index);
+
+            int i0 = index - 1;
+            int i2 = index + 1;
+            int i3 = index + 2;
+            if ((i0 < 0) || (i3 > lastFrame))
+            {
+                if (this._isLooping)
+                {
+                    i0 = (i0 + frameCount) % frameCount;
+                    i2 %= frameCount;
+                    i3 %= frameCount;
+                }
+                else
+                {
+                    i0 = Math.Max(i0, 0);
+                    i2 = Math.Min(i2, lastFrame);
+                    i3 = Math.Min(i3, lastFrame);
+                }
+            }
+
+            float left;
+            float right;
+            if (channels == 2)
+            {
+                left = PcmConverter.Hermite(
+                    samples[start + (i0 * 2)],
+                    samples[start + (index * 2)],
+                    samples[start + (i2 * 2)],
+                    samples[start + (i3 * 2)],
+                    t);
+                right = PcmConverter.Hermite(
+                    samples[start + (i0 * 2) + 1],
+                    samples[start + (index * 2) + 1],
+                    samples[start + (i2 * 2) + 1],
+                    samples[start + (i3 * 2) + 1],
+                    t);
+            }
+            else
+            {
+                left = right = PcmConverter.Hermite(
+                    samples[start + i0],
+                    samples[start + index],
+                    samples[start + i2],
+                    samples[start + i3],
+                    t);
+            }
+
+            output[mixed * 2] += left * gainLeft;
+            output[(mixed * 2) + 1] += right * gainRight;
+            gainLeft += stepLeft;
+            gainRight += stepRight;
+            mixed++;
+
+            position += rate;
+            if (position >= frameCount)
+            {
+                if (this._isLooping)
+                {
+                    do
+                    {
+                        position -= frameCount;
+                    }
+                    while (position >= frameCount);
+                }
+                else
+                {
+                    isPlaying = false;
+                }
+            }
+        }
+
+        this._position = position;
+        this._gainLeft = gainLeft;
+        this._gainRight = gainRight;
+
+        return isPlaying;
     }
 
     private float ReadVolume()

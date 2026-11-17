@@ -142,9 +142,18 @@ public sealed class FakeVoice : IVoiceStrategy
         this.IsPlaying = false;
     }
 
+    /// <summary>The rate it was last told to play at.</summary>
+    public float PlaybackRate { get; private set; } = 1f;
+
     void IVoiceStrategy.SetLooping(
         bool isLooping)
     {
+    }
+
+    void IVoiceStrategy.SetPlaybackRate(
+        float rate)
+    {
+        this.PlaybackRate = rate;
     }
 
     void IVoiceStrategy.SetVolumeControl(

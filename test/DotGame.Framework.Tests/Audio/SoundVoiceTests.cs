@@ -53,6 +53,58 @@ public sealed class SoundVoiceTests : IDisposable
     }
 
     [Fact]
+    public void PlaybackRate_IsAsRecordedUntilSet_AndReachesThePlatformOnce()
+    {
+        Assert.Equal(1f, this._voice.PlaybackRate);
+
+        this._voice.PlaybackRate = 1f;
+        Assert.Empty(this._platform.Calls);
+
+        this._voice.PlaybackRate = 1.5f;
+        this._voice.PlaybackRate = 1.5f;
+
+        Assert.Equal(1.5f, this._voice.PlaybackRate);
+        Assert.Equal(["Rate 1.5"], this._platform.Calls);
+    }
+
+    [Fact]
+    public void PlaybackRate_StaysAcrossPlayStopAndPause()
+    {
+        this._voice.PlaybackRate = 2f;
+
+        this._voice.Play();
+        this._voice.Pause();
+        this._voice.Resume();
+        this._voice.Stop();
+        this._voice.Play();
+
+        Assert.Equal(2f, this._voice.PlaybackRate);
+        Assert.Single(this._platform.Calls, call => call.StartsWith("Rate", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData(0f, SoundVoice.MinPlaybackRate)]
+    [InlineData(-3f, SoundVoice.MinPlaybackRate)]
+    [InlineData(0.1f, SoundVoice.MinPlaybackRate)]
+    [InlineData(9f, SoundVoice.MaxPlaybackRate)]
+    [InlineData(float.PositiveInfinity, SoundVoice.MaxPlaybackRate)]
+    public void PlaybackRate_OutsideItsRange_IsClamped(
+        float value,
+        float expected)
+    {
+        this._voice.PlaybackRate = value;
+
+        Assert.Equal(expected, this._voice.PlaybackRate);
+    }
+
+    [Fact]
+    public void PlaybackRate_NotANumber_Throws()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => this._voice.PlaybackRate = float.NaN);
+        Assert.Equal(1f, this._voice.PlaybackRate);
+    }
+
+    [Fact]
     public void Resume_WithoutAPause_DoesNothing()
     {
         this._voice.Resume();
@@ -174,6 +226,12 @@ public sealed class SoundVoiceTests : IDisposable
         public void SetVolumeControl(
             Strategy<IVolumeControlStrategy>? volumeControl)
         {
+        }
+
+        public void SetPlaybackRate(
+            float rate)
+        {
+            this.Calls.Add(FormattableString.Invariant($"Rate {rate}"));
         }
 
         public void Play()

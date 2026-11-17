@@ -293,6 +293,150 @@ public sealed class AudioMixerTests
         Assert.Equal([0.5f, -0.5f], samples);
     }
 
+    [Fact]
+    public void At_twice_the_rate_a_voice_plays_every_other_frame_and_ends_in_half_the_time()
+    {
+        var mixer = new AudioMixer();
+        var voice = CreateVoice(mixer, Stereo(0.1f, -0.1f, 0.2f, -0.2f, 0.3f, -0.3f, 0.4f, -0.4f, 0.5f, -0.5f, 0.6f, -0.6f));
+        var output = new float[4 * 2];
+
+        voice.SetPlaybackRate(2f);
+        voice.Play();
+
+        // Six frames at twice the rate are three: the first, third and fifth, read on whole
+        // frames, where the interpolator gives the frame itself
+        Assert.False(mixer.Mix(output, 4));
+        AssertSamples([0.1f, -0.1f, 0.3f, -0.3f, 0.5f, -0.5f, 0f, 0f], output);
+        Assert.False(voice.IsPlaying);
+    }
+
+    [Fact]
+    public void At_half_the_rate_a_voice_takes_twice_as_long_and_passes_between_its_frames()
+    {
+        var mixer = new AudioMixer();
+        var voice = CreateVoice(mixer, new SoundStrategy([0f, 1f, 2f, 3f, 4f, 5f, 6f, 7f], 1, TimeSpan.FromMilliseconds(8)));
+        var output = new float[16 * 2];
+
+        voice.SetPlaybackRate(0.5f);
+        voice.Play();
+
+        // Eight frames at half the rate are sixteen
+        Assert.True(mixer.Mix(output, 15));
+        Assert.True(voice.IsPlaying);
+        Assert.False(mixer.Mix(new float[4], 2));
+        Assert.False(voice.IsPlaying);
+
+        // On a straight line the interpolator is exact, between frames as on them (away from
+        // the ends, where the neighbours repeat the end frames)
+        for (int frame = 2; frame < 12; frame++)
+        {
+            Assert.Equal(frame * 0.5f, output[frame * 2], 5);
+            Assert.Equal(frame * 0.5f, output[(frame * 2) + 1], 5);
+        }
+    }
+
+    [Fact]
+    public void A_sine_at_twice_the_rate_has_twice_the_frequency()
+    {
+        const int Frames = 400;
+        var samples = new float[Frames];
+        for (int i = 0; i < Frames; i++)
+        {
+            samples[i] = MathF.Sin(2 * MathF.PI * 10 * i / Frames);     // ten cycles
+        }
+
+        int asRecorded = CountRisingCrossings(samples, 1f, Frames);
+        int doubled = CountRisingCrossings(samples, 2f, Frames / 2);
+        int slowed = CountRisingCrossings(samples, 0.75f, 300);
+
+        // The same ten cycles in half as many frames; three quarters of the rate plays three
+        // quarters of them in 300
+        Assert.InRange(asRecorded, 9, 10);
+        Assert.Equal(asRecorded, doubled);
+        Assert.InRange(slowed, 5, 6);
+
+        static int CountRisingCrossings(
+            float[] samples,
+            float rate,
+            int frames)
+        {
+            var mixer = new AudioMixer();
+            var voice = CreateVoice(mixer, new SoundStrategy(samples, 1, TimeSpan.FromSeconds((double)samples.Length / Rate)));
+            var output = new float[frames * 2];
+            voice.SetPlaybackRate(rate);
+            voice.Play();
+            mixer.Mix(output, frames);
+
+            int crossings = 0;
+            for (int i = 1; i < frames; i++)
+            {
+                if ((output[(i - 1) * 2] < 0) && (output[i * 2] >= 0))
+                {
+                    crossings++;
+                }
+            }
+
+            return crossings;
+        }
+    }
+
+    [Fact]
+    public void A_rate_changed_while_playing_goes_on_from_where_the_voice_was()
+    {
+        var mixer = new AudioMixer();
+        var ramp = new float[64];
+        for (int i = 0; i < ramp.Length; i++)
+        {
+            ramp[i] = i;
+        }
+
+        var voice = CreateVoice(mixer, new SoundStrategy(ramp, 1, TimeSpan.FromMilliseconds(64)));
+        var output = new float[8 * 2];
+
+        voice.Play();
+        mixer.Mix(output, 4);                       // frames 0 to 3
+        Assert.Equal(3f, output[6]);
+
+        voice.SetPlaybackRate(1.5f);
+        mixer.Mix(output, 4);                       // 4, 5.5, 7, 8.5
+        AssertSamples([4f, 4f, 5.5f, 5.5f, 7f, 7f, 8.5f, 8.5f], output[..8]);
+
+        // Back at the recorded rate it carries on from between two frames
+        voice.SetPlaybackRate(1f);
+        mixer.Mix(output, 3);                       // 10, 11, 12
+        AssertSamples([10f, 10f, 11f, 11f, 12f, 12f], output[..6]);
+        Assert.True(voice.IsPlaying);
+    }
+
+    [Fact]
+    public void A_looping_voice_at_a_rate_starts_over_and_keeps_playing()
+    {
+        var mixer = new AudioMixer();
+        var voice = CreateVoice(mixer, new SoundStrategy([1f, 1f, 1f, 1f, 1f, 1f], 1, TimeSpan.FromMilliseconds(6)));
+        var output = new float[20 * 2];
+
+        voice.SetLooping(true);
+        voice.SetPlaybackRate(4f);
+        voice.Play();
+
+        // (A loop's neighbours come from its other end, so a steady sound stays steady across
+        // the seam)
+        Assert.True(mixer.Mix(output, 20));
+        Assert.True(voice.IsPlaying);
+        Assert.All(output, sample => Assert.Equal(1f, sample, 5));
+    }
+
+    private static void AssertSamples(
+        float[] expected,
+        float[] actual)
+    {
+        Assert.Equal(expected.Length, actual.Length);
+        for (int i = 0; i < expected.Length; i++)
+        {
+            Assert.Equal(expected[i], actual[i], 5);
+        }
+    }
+
     private static SoundStrategy Stereo(
         params float[] samples)
     {
