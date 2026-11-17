@@ -130,6 +130,10 @@ internal sealed class VoiceStrategy : IVoiceStrategy
         {
             this.QueueLoopAhead();
         }
+        else if (wasPlaying)
+        {
+            this.FlushCue();
+        }
     }
 
     // SDL resamples the stream by the ratio as it reads it, so a change is heard at once, and
@@ -188,6 +192,10 @@ internal sealed class VoiceStrategy : IVoiceStrategy
         if (this._isLoopPlaying)
         {
             this.QueueLoopAhead();
+        }
+        else
+        {
+            this.FlushCue();
         }
 
         SDL.ResumeAudioStreamDevice(this._stream);
@@ -276,6 +284,15 @@ internal sealed class VoiceStrategy : IVoiceStrategy
                 callback: null,
                 userdata: nint.Zero);
         }
+    }
+
+    // Tells SDL that what's queued is all of the cue. A stream that's resampling (at a rate
+    // other than as recorded) holds its last frames back for the frames it expects to follow,
+    // so without this the queue never empties and the voice never finishes. More can still be
+    // queued after it, as a loop turned on again does.
+    private void FlushCue()
+    {
+        SDL.FlushAudioStream(this._stream);
     }
 
     private void ApplyGain()
