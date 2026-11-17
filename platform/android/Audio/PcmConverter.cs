@@ -204,7 +204,7 @@ internal static class PcmConverter
     }
 
     // Catmull-Rom spline through y1 (t = 0) and y2 (t = 1)
-    private static float Hermite(
+    internal static float Hermite(
         float y0,
         float y1,
         float y2,

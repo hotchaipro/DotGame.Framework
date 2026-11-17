@@ -74,6 +74,16 @@ internal sealed class VoiceStrategy : IVoiceStrategy
         }
     }
 
+    public void SetPlaybackRate(
+        float rate)
+    {
+        var voice = this._voice;
+        if (voice is not null)
+        {
+            AudioBindings.SetVoicePlaybackRate(voice, rate);
+        }
+    }
+
     public void Play()
     {
         var voice = this._voice;

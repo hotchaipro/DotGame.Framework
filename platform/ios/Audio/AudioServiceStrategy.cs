@@ -125,10 +125,14 @@ internal sealed class AudioServiceStrategy : IAudioServiceStrategy, IMusicPlayba
     // per-cue instance limiting lives in higher layers. The array is
     // replaced (never resized in place) under _requestLock, so the
     // audio thread can wire a snapshot while the pool grows.
-    private sealed class PlayerSlot(AVAudioPlayerNode node, AVAudioFormat format)
+    private sealed class PlayerSlot(AVAudioPlayerNode node, AVAudioFormat format, AVAudioUnitVarispeed? rateUnit)
     {
         public volatile AVAudioPlayerNode Node = node;
         public readonly AVAudioFormat Format = format;
+
+        // Between the node and the mixer in a slot whose voice plays at a rate other than as
+        // recorded, and null in every other slot. Connected once, with the node.
+        public volatile AVAudioUnitVarispeed? RateUnit = rateUnit;
 
         // Set by the audio thread once the node is attached to the
         // running engine; owners treat an unwired node as absent.
@@ -501,7 +505,17 @@ internal sealed class AudioServiceStrategy : IAudioServiceStrategy, IMusicPlayba
 
             // Connect once. Reconnecting while the engine is running
             // throws kAudioUnitErr_FormatNotSupported.
-            AudioNodes.Connect(engine, node, engine.MainMixerNode, slot.Format);
+            if (slot.RateUnit is { } rateUnit)
+            {
+                engine.AttachNode(rateUnit);
+                AudioNodes.Connect(engine, node, rateUnit, slot.Format);
+                AudioNodes.Connect(engine, rateUnit, engine.MainMixerNode, slot.Format);
+            }
+            else
+            {
+                AudioNodes.Connect(engine, node, engine.MainMixerNode, slot.Format);
+            }
+
             slot.Wired = true;
 
             slot.Owner?.OnNodeWired();
@@ -536,6 +550,11 @@ internal sealed class AudioServiceStrategy : IAudioServiceStrategy, IMusicPlayba
             this._abandoned.Add(slot.Node);
             slot.Wired = false;
             slot.Node = new AVAudioPlayerNode();
+            if (slot.RateUnit is { } rateUnit)
+            {
+                this._abandoned.Add(rateUnit);
+                slot.RateUnit = new AVAudioUnitVarispeed();
+            }
         }
 
         // Each music track schedules its audio again, from its start
@@ -826,9 +845,15 @@ internal sealed class AudioServiceStrategy : IAudioServiceStrategy, IMusicPlayba
     /// <see cref="ReleaseSlot"/>. Called on the game thread by voices
     /// and on a track's background queue by music.
     /// </summary>
+    /// <param name="format">The format the slot's node is connected with.</param>
+    /// <param name="owner">The voice or track that holds the slot.</param>
+    /// <param name="hasRateUnit">Whether the slot has a varispeed unit between its node and the
+    /// mixer, for a voice that plays at a rate other than as recorded
+    /// (<see cref="GetSlotRateUnit"/>). A slot keeps the kind it was made as.</param>
     internal int AcquireSlot(
         AVAudioFormat format,
-        IPlayerNodeOwner owner)
+        IPlayerNodeOwner owner,
+        bool hasRateUnit = false)
     {
         int index = -1;
 
@@ -838,7 +863,7 @@ internal sealed class AudioServiceStrategy : IAudioServiceStrategy, IMusicPlayba
 
             for (int i = 0; i < slots.Length; i++)
             {
-                if (!slots[i].InUse && slots[i].Format.IsEqual(format))
+                if (!slots[i].InUse && ((slots[i].RateUnit is not null) == hasRateUnit) && slots[i].Format.IsEqual(format))
                 {
                     index = i;
                     break;
@@ -851,7 +876,7 @@ internal sealed class AudioServiceStrategy : IAudioServiceStrategy, IMusicPlayba
                 Array.Copy(slots, grown, slots.Length);
                 // NOTE: Its own format: a slot outlives the sound that made it, which disposes its format
                 var slotFormat = new AVAudioFormat(format.CommonFormat, format.SampleRate, format.ChannelCount, format.Interleaved);
-                grown[slots.Length] = new PlayerSlot(new AVAudioPlayerNode(), slotFormat);
+                grown[slots.Length] = new PlayerSlot(new AVAudioPlayerNode(), slotFormat, hasRateUnit ? new AVAudioUnitVarispeed() : null);
                 this._slots = grown;
                 index = slots.Length;
             }
@@ -946,6 +971,21 @@ internal sealed class AudioServiceStrategy : IAudioServiceStrategy, IMusicPlayba
         }
 
         return slots[slot].Node;
+    }
+
+    /// <summary>
+    /// The slot's varispeed unit when the slot has one and it is attached to the running output,
+    /// or <c>null</c>.
+    /// </summary>
+    internal AVAudioUnitVarispeed? GetSlotRateUnit(int slot)
+    {
+        var slots = Volatile.Read(ref this._slots);
+        if (!this._outputAvailable || slot < 0 || slot >= slots.Length || !slots[slot].Wired)
+        {
+            return null;
+        }
+
+        return slots[slot].RateUnit;
     }
 
     /// <summary>

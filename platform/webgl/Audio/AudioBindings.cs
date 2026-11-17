@@ -60,6 +60,9 @@ internal sealed partial class AudioBindings
     [JSImport("audio.setVoiceLooping", ModuleName)]
     public static partial void SetVoiceLooping(JSObject voice, bool isLooping);
 
+    [JSImport("audio.setVoicePlaybackRate", ModuleName)]
+    public static partial void SetVoicePlaybackRate(JSObject voice, double rate);
+
     [JSImport("audio.setVoiceVolumeControl", ModuleName)]
     public static partial void SetVoiceVolumeControl(JSObject voice, JSObject? volumeControl);
 

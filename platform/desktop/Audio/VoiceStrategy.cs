@@ -33,6 +33,7 @@ internal sealed class VoiceStrategy : IVoiceStrategy
     private bool _isPaused;
     private bool _isInActiveList;
     private bool _isLooping;
+    private float _playbackRate = 1f;
 
     // Playing and looping, which holds even if a long frame lets the queue run dry
     private bool _isLoopPlaying;
@@ -129,6 +130,26 @@ internal sealed class VoiceStrategy : IVoiceStrategy
         {
             this.QueueLoopAhead();
         }
+        else if (wasPlaying)
+        {
+            this.FlushCue();
+        }
+    }
+
+    // SDL resamples the stream by the ratio as it reads it, so a change is heard at once, and
+    // what's queued (which IsPlaying reads) runs out at the rate it's played at
+    public void SetPlaybackRate(
+        float rate)
+    {
+        this._playbackRate = rate;
+        if (this._stream != nint.Zero)
+        {
+            SDL.SetAudioStreamFrequencyRatio(this._stream, rate);
+            if (this._isLoopPlaying && !this._isPaused)
+            {
+                this.QueueLoopAhead();
+            }
+        }
     }
 
     public void Play()
@@ -171,6 +192,10 @@ internal sealed class VoiceStrategy : IVoiceStrategy
         if (this._isLoopPlaying)
         {
             this.QueueLoopAhead();
+        }
+        else
+        {
+            this.FlushCue();
         }
 
         SDL.ResumeAudioStreamDevice(this._stream);
@@ -248,7 +273,9 @@ internal sealed class VoiceStrategy : IVoiceStrategy
             return;
         }
 
-        while (SDL.GetAudioStreamQueued(this._stream) < this._loopAheadBytes)
+        // (What's queued is in the sound's own bytes, which a faster rate uses up sooner)
+        int ahead = (int)MathF.Ceiling(this._loopAheadBytes * this._playbackRate);
+        while (SDL.GetAudioStreamQueued(this._stream) < ahead)
         {
             SDL.PutAudioStreamDataNoCopy(
                 this._stream,
@@ -257,6 +284,15 @@ internal sealed class VoiceStrategy : IVoiceStrategy
                 callback: null,
                 userdata: nint.Zero);
         }
+    }
+
+    // Tells SDL that what's queued is all of the cue. A stream that's resampling (at a rate
+    // other than as recorded) holds its last frames back for the frames it expects to follow,
+    // so without this the queue never empties and the voice never finishes. More can still be
+    // queued after it, as a loop turned on again does.
+    private void FlushCue()
+    {
+        SDL.FlushAudioStream(this._stream);
     }
 
     private void ApplyGain()

@@ -1,5 +1,7 @@
 #nullable enable
 abstract DotGame.Framework.Audio.FadeCurve.InterpolateCore(float fromVolume, float toVolume, float t) -> float
+const DotGame.Framework.Audio.SoundVoice.MaxPlaybackRate = 4 -> float
+const DotGame.Framework.Audio.SoundVoice.MinPlaybackRate = 0.25 -> float
 const DotGame.Framework.Input.InputService.MaxGamepads = 8 -> int
 DotGame.Framework.Angle
 DotGame.Framework.Angle.Angle() -> void
@@ -41,6 +43,8 @@ DotGame.Framework.Audio.SoundVoice.IsPaused.get -> bool
 DotGame.Framework.Audio.SoundVoice.IsPlaying.get -> bool
 DotGame.Framework.Audio.SoundVoice.Pause() -> void
 DotGame.Framework.Audio.SoundVoice.Play(bool loop = false) -> void
+DotGame.Framework.Audio.SoundVoice.PlaybackRate.get -> float
+DotGame.Framework.Audio.SoundVoice.PlaybackRate.set -> void
 DotGame.Framework.Audio.SoundVoice.Resume() -> void
 DotGame.Framework.Audio.SoundVoice.Stop() -> void
 DotGame.Framework.Audio.SoundVoice.VolumeControl.get -> DotGame.Framework.Audio.VolumeControl?

@@ -1602,8 +1602,9 @@ export function setupAudio() {
             // take no parameters and replay this same sub-range.
             this.sliceOffset = offsetSeconds || 0;
             this.sliceDuration = durationSeconds || 0;
-            this.startedAt = 0;          // ctx.currentTime the slice's start would have played
+            this.startedAt = 0;          // ctx.currentTime the slice's start would have played, at the rate it plays at now
             this.isLooping = false;
+            this.playbackRate = 1;       // a multiple of the recorded speed; every source is made with it
             this.restartAfterRebuild = false;
             this.ended = true;
         }
@@ -1712,8 +1713,13 @@ export function setupAudio() {
         src.buffer = voice.buffer.decodedBuffer;
         src.connect(voice.gainNode);
         voice.activeSource = src;
+        // The offset, the duration and the loop points below are in seconds of the buffer, which
+        // the rate doesn't change: only how fast they pass
+        if (voice.playbackRate !== 1) {
+            src.playbackRate.value = voice.playbackRate;
+        }
         // NOTE: From where a resume carries on, so a second pause finds the right place
-        voice.startedAt = ctx.currentTime - (offsetSeconds - voice.sliceOffset);
+        voice.startedAt = ctx.currentTime - ((offsetSeconds - voice.sliceOffset) / voice.playbackRate);
         voice.pausedOffset = null;
         voice.ended = false;
         // Reuse a single shared 'ended' handler. The source node
@@ -1799,8 +1805,9 @@ export function setupAudio() {
     }
 
     // Seconds into the slice that a playing voice has reached
+    // Where the voice is in its slice, in seconds of the buffer
     function slicePosition(voice) {
-        const elapsed = Math.max(0, getAudioContext().currentTime - voice.startedAt);
+        const elapsed = Math.max(0, getAudioContext().currentTime - voice.startedAt) * voice.playbackRate;
         const length = voice.sliceDuration > 0
             ? voice.sliceDuration
             : voice.buffer.decodedBuffer.duration - voice.sliceOffset;
@@ -1826,6 +1833,24 @@ export function setupAudio() {
 
     function isVoicePlaying(voice) {
         return !!(voice && voice.activeSource && !voice.ended);
+    }
+
+    // How fast the voice plays, as a multiple of the recorded speed. A source that's playing
+    // takes the new rate at once (its 'ended' follows by itself), and the time its slice began
+    // is moved so that the place it has reached is the same at the new rate.
+    function setVoicePlaybackRate(voice, rate) {
+        if (!voice || voice.playbackRate === rate) {
+            return;
+        }
+        const src = voice.activeSource;
+        if (!src) {
+            voice.playbackRate = rate;
+            return;
+        }
+        const position = slicePosition(voice);
+        voice.playbackRate = rate;
+        voice.startedAt = getAudioContext().currentTime - (position / rate);
+        src.playbackRate.value = rate;
     }
 
     function setVoiceVolumeControl(voice, vc) {
@@ -3668,6 +3693,7 @@ export function setupAudio() {
         pauseVoice,
         isVoicePlaying,
         setVoiceLooping,
+        setVoicePlaybackRate,
         setVoiceVolumeControl,
         createAudioStream,
         destroyAudioStream,

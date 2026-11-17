@@ -51,6 +51,16 @@ internal interface IVoiceStrategy : IDisposable
         bool isLooping);
 
     /// <summary>
+    /// Sets how fast the voice plays its cue, as a multiple of the recorded speed (1 is as
+    /// recorded): the cue is resampled, so its pitch and its length change together. The public
+    /// wrapper has validated and clamped the rate. It stays set across <see cref="Play"/>,
+    /// <see cref="Stop"/> and <see cref="Pause"/>, and a change while the voice plays is heard at
+    /// once. <see cref="IsPlaying"/> turns <c>false</c> when the cue ends at the rate it played at.
+    /// </summary>
+    void SetPlaybackRate(
+        float rate);
+
+    /// <summary>
     /// Starts playback of the voice's sound cue from the beginning,
     /// or resumes playback if the voice was paused. If the voice is
     /// already playing the call restarts playback from the beginning.

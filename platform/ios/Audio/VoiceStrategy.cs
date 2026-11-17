@@ -34,13 +34,30 @@ namespace DotGame.Framework.iOS.Audio;
 /// volume thread applies its volume to the node, so volume
 /// changes and fades take effect while it plays.
 /// </para>
+/// <para>
+/// A voice plays at a rate other than as recorded through an
+/// <see cref="AVAudioUnitVarispeed"/> between its node and the mixer.
+/// A node is connected once and never again, so the unit can't be added
+/// to a slot: the first time a voice's rate leaves 1 it gives up its
+/// slot for one made with the unit (<see cref="SetPlaybackRate"/>), and
+/// keeps that one. Voices that never change their rate, which is most,
+/// play straight into the mixer as they always have.
+/// </para>
 /// </remarks>
 internal sealed class VoiceStrategy : IVoiceStrategy, IPlayerNodeOwner
 {
     private readonly AudioServiceStrategy _service;
     private readonly AVAudioPcmBuffer _segmentBuffer;
     private readonly AVAudioPcmBuffer _emptyBuffer;
-    private readonly int _slot;
+    private readonly AVAudioFormat _format;
+
+    // (Changed once at most, on the game thread, with the voice stopped: SetPlaybackRate)
+    private volatile int _slot;
+    private bool _hasRateSlot;
+    private volatile float _playbackRate = 1f;
+
+    // What the unit's rate was last set to
+    private float _appliedRate = -1f;
     // Cached ScheduleBuffer completion delegate. Allocated once at
     // construction so each Play reuses the same managed instance and
     // avoids per-Play closure allocation on the audio hot path.
@@ -112,6 +129,7 @@ internal sealed class VoiceStrategy : IVoiceStrategy, IPlayerNodeOwner
         this._segmentBuffer = sound.GetSegmentBuffer(startFrame, frameCount);
         this._emptyBuffer = sound.EmptyBuffer;
 
+        this._format = sound.Format;
         this._slot = service.AcquireSlot(sound.Format, this);
         this._onPlaybackComplete = this.HandlePlaybackComplete;
         this._nodeWantedCheck = () => this._isNodeWanted && !this._isDisposed;
@@ -153,6 +171,8 @@ internal sealed class VoiceStrategy : IVoiceStrategy, IPlayerNodeOwner
         // the node was wired, as when a pool grows for an overlap, is what
         // this voice is for. Audio thread.
         this._appliedVolume = -1f;
+        this._appliedRate = -1f;
+        this.ApplyRate();
         if ((this._playWhenWired || (this._isLooping && this._isPlaying)) && !this._isDisposed)
         {
             this._playWhenWired = false;
@@ -220,6 +240,52 @@ internal sealed class VoiceStrategy : IVoiceStrategy, IPlayerNodeOwner
         {
             // Lets the loop reach its end, and its completion ends the play
             node.ScheduleBuffer(this._emptyBuffer, null, AVAudioPlayerNodeBufferOptions.InterruptsAtLoop, null);
+        }
+    }
+
+    public void SetPlaybackRate(
+        float rate)
+    {
+        this._playbackRate = rate;
+        if (this._isDisposed)
+        {
+            return;
+        }
+
+        if ((rate != 1f) && !this._hasRateSlot)
+        {
+            // Its first rate other than as recorded: it moves to a slot whose node plays through
+            // a varispeed unit, as a node that's connected can't have one put after it. What it
+            // was playing is cut off (the old node is stopped as its slot is released), and a
+            // play made before the audio thread has wired the new node starts when it's wired.
+            this.Stop();
+            this._isNodeWanted = false;
+            this._hasRateSlot = true;
+
+            int old = this._slot;
+            this._slot = this._service.AcquireSlot(this._format, this, hasRateUnit: true);
+            this._service.ReleaseSlot(old);
+            return;
+        }
+
+        this.ApplyRate();
+    }
+
+    // Sets the unit's rate: a parameter of the unit, heard within a render cycle. Called on the
+    // game thread and, as its node is wired, on the audio thread.
+    private void ApplyRate()
+    {
+        float rate = this._playbackRate;
+        if (rate == this._appliedRate)
+        {
+            return;
+        }
+
+        var unit = this._service.GetSlotRateUnit(this._slot);
+        if (unit is not null)
+        {
+            this._appliedRate = rate;
+            unit.Rate = rate;
         }
     }
 
