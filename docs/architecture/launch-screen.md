@@ -50,7 +50,7 @@ reads the images, scales them to their drawn sizes and writes:
 | Platform | What the build makes | Registered by |
 |---|---|---|
 | Android | The logo and branding as PNGs for each density (mdpi to xxxhdpi). A `layer-list` drawable, `dotgame_launch_screen` (the color, the centered logo, the branding). A `DotGame.LaunchScreen` theme whose `windowBackground` is that drawable, and a `values-v31` version that sets `windowSplashScreenBackground`, `windowSplashScreenAnimatedIcon` and `windowSplashScreenBrandingImage`. | `_RegisterLaunchScreenAndroidResources`, as `AndroidResource` items. The game's activity uses `@style/DotGame.LaunchScreen`; its parent is `$(LaunchScreenAndroidThemeParent)` |
-| iOS | `LaunchScreen.storyboard` (the color, the logo with size constraints, centered, and the branding at the bottom) and its images at @1x, @2x and @3x | `_RegisterLaunchScreenBundleResources`, as the app's launch storyboard (`UILaunchStoryboardName`) |
+| iOS | `LaunchScreen.storyboard` (the color, the logo with size constraints, centered, and the branding at the bottom) and its images at @1x, @2x and @3x, named by a hash of what they show: iOS keeps a launch screen's images by name, so an update with the same names shows the old ones | `_RegisterLaunchScreenBundleResources`, as the app's launch storyboard (`UILaunchStoryboardName`) |
 | Desktop | The logo and branding as KTX2 textures, at three pixels per device-independent pixel | Content, under `LaunchScreen/` |
 | Web | The logo and branding as WebP images, at three pixels per device-independent pixel | Content, under `LaunchScreen/`; then the page (below) |
 

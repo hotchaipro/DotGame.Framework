@@ -2,6 +2,7 @@
 
 using System.Globalization;
 using System.Security;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Nodes;
 
@@ -343,16 +344,25 @@ internal static class LaunchScreenCommand
 
     // ── iOS ───────────────────────────────────────────────────────────
 
-    // LaunchScreen.storyboard, and its images at @1x, @2x and @3x
+    // LaunchScreen.storyboard, and its images at @1x, @2x and @3x.
+    //
+    // The images' names change as they do: iOS keeps a launch screen's images by name, so an
+    // update with the same names showed its new color with the old images, even after the
+    // device restarted.
     private static void WriteIos(Description screen, string outputDir)
     {
+        string logoName = IosImageName("dotgame_launch_logo", screen.Logo, screen.LogoSize);
+        string brandingName = (screen.Branding is null)
+            ? string.Empty
+            : IosImageName("dotgame_launch_branding", screen.Branding, screen.BrandingSize);
+
         foreach (int scale in new[] { 1, 2, 3 })
         {
             string suffix = (scale == 1) ? string.Empty : $"@{scale}x";
-            WritePng(Scaled(screen.Logo, screen.LogoSize, scale), Path.Combine(outputDir, $"dotgame_launch_logo{suffix}.png"));
+            WritePng(Scaled(screen.Logo, screen.LogoSize, scale), Path.Combine(outputDir, $"{logoName}{suffix}.png"));
             if (screen.Branding is not null)
             {
-                WritePng(Scaled(screen.Branding, screen.BrandingSize, scale), Path.Combine(outputDir, $"dotgame_launch_branding{suffix}.png"));
+                WritePng(Scaled(screen.Branding, screen.BrandingSize, scale), Path.Combine(outputDir, $"{brandingName}{suffix}.png"));
             }
         }
 
@@ -365,7 +375,7 @@ internal static class LaunchScreenCommand
 
         // A view's own size constraints go in its element; its position, in its superview's
         subviews.Append($"""
-                                    <imageView userInteractionEnabled="NO" contentMode="scaleAspectFit" image="dotgame_launch_logo" translatesAutoresizingMaskIntoConstraints="NO" id="dgL-ogo-Img">
+                                    <imageView userInteractionEnabled="NO" contentMode="scaleAspectFit" image="{logoName}" translatesAutoresizingMaskIntoConstraints="NO" id="dgL-ogo-Img">
                                         <rect key="frame" x="0.0" y="0.0" width="{Dp(screen.LogoSize.Width)}" height="{Dp(screen.LogoSize.Height)}"/>
                                         <constraints>
                                             <constraint firstAttribute="width" constant="{Dp(screen.LogoSize.Width)}" id="dgL-ogo-Wid"/>
@@ -380,14 +390,14 @@ internal static class LaunchScreenCommand
 
             """);
         resources.Append($"""
-                    <image name="dotgame_launch_logo" width="{Dp(screen.LogoSize.Width)}" height="{Dp(screen.LogoSize.Height)}"/>
+                    <image name="{logoName}" width="{Dp(screen.LogoSize.Width)}" height="{Dp(screen.LogoSize.Height)}"/>
 
             """);
 
         if (screen.Branding is not null)
         {
             subviews.Append($"""
-                                        <imageView userInteractionEnabled="NO" contentMode="scaleAspectFit" image="dotgame_launch_branding" translatesAutoresizingMaskIntoConstraints="NO" id="dgB-rnd-Img">
+                                        <imageView userInteractionEnabled="NO" contentMode="scaleAspectFit" image="{brandingName}" translatesAutoresizingMaskIntoConstraints="NO" id="dgB-rnd-Img">
                                             <rect key="frame" x="0.0" y="0.0" width="{Dp(screen.BrandingSize.Width)}" height="{Dp(screen.BrandingSize.Height)}"/>
                                             <constraints>
                                                 <constraint firstAttribute="width" constant="{Dp(screen.BrandingSize.Width)}" id="dgB-rnd-Wid"/>
@@ -402,7 +412,7 @@ internal static class LaunchScreenCommand
 
                 """);
             resources.Append($"""
-                        <image name="dotgame_launch_branding" width="{Dp(screen.BrandingSize.Width)}" height="{Dp(screen.BrandingSize.Height)}"/>
+                        <image name="{brandingName}" width="{Dp(screen.BrandingSize.Width)}" height="{Dp(screen.BrandingSize.Height)}"/>
 
                 """);
         }
@@ -441,6 +451,17 @@ internal static class LaunchScreenCommand
             </document>
 
             """);
+    }
+
+    // A name with a hash of what the image shows: its pixels and the size it's drawn at
+    private static string IosImageName(string name, RgbaImage image, (float Width, float Height) size)
+    {
+        var scaled = Scaled(image, size, ImageScale);
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        hash.AppendData(BitConverter.GetBytes(scaled.Width));
+        hash.AppendData(BitConverter.GetBytes(scaled.Height));
+        hash.AppendData(scaled.Pixels);
+        return $"{name}_{Convert.ToHexString(hash.GetHashAndReset(), 0, 4).ToLowerInvariant()}";
     }
 
     // ── Desktop and web ───────────────────────────────────────────────
