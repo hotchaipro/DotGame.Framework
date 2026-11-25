@@ -219,6 +219,15 @@
         <_AggressiveAttributeTrimming Condition="'$(_AggressiveAttributeTrimming)' == ''">true</_AggressiveAttributeTrimming>
     </PropertyGroup>
 
+    <!-- Download size: emcc's -g, which the WebAssembly SDK passes in Release too (WasmNativeDebugSymbols
+              defaults to true), though the published wasm's DWARF is stripped. It leaves dotnet.native.js
+              unminified and keeps identical functions apart in the wasm: without it, about 16 KB less
+              JavaScript and 31 KB less wasm after Brotli. The symbol map (WasmEmitSymbolMap) still comes
+              out; a function folded into an identical one is named after it there. -->
+    <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+        <WasmNativeDebugSymbols Condition="'$(WasmNativeDebugSymbols)' == ''">false</WasmNativeDebugSymbols>
+    </PropertyGroup>
+
     <Target Name="CopyWasmSymbolMapToPublish" AfterTargets="Publish" Condition="'$(_DotGameShipWasmSymbolMap)' == 'true'">
         <ItemGroup>
             <_WasmSymbolMap Include="$(IntermediateOutputPath)wasm\for-publish\dotnet.native.js.symbols" />

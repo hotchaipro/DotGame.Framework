@@ -55,6 +55,7 @@
         <_FrameworkContentPipelineTasksHashes>$(_FrameworkContentPipelineTasksHashes)$([MSBuild]::StableStringHash($([System.IO.File]::ReadAllText('$(_FrameworkContentPipelineTasksDir)_ResolveProcessorCommand.cs'))))</_FrameworkContentPipelineTasksHashes>
         <_FrameworkContentPipelineTasksHashes>$(_FrameworkContentPipelineTasksHashes)$([MSBuild]::StableStringHash($([System.IO.File]::ReadAllText('$(_FrameworkContentPipelineTasksDir)_SaveToContentCache.cs'))))</_FrameworkContentPipelineTasksHashes>
         <_FrameworkContentPipelineTasksHashes>$(_FrameworkContentPipelineTasksHashes)$([MSBuild]::StableStringHash($([System.IO.File]::ReadAllText('$(_FrameworkContentPipelineTasksDir)_SaveToContentGroupCache.cs'))))</_FrameworkContentPipelineTasksHashes>
+        <_FrameworkContentPipelineTasksHashes>$(_FrameworkContentPipelineTasksHashes)$([MSBuild]::StableStringHash($([System.IO.File]::ReadAllText('$(_FrameworkContentPipelineTasksDir)_StripScriptComments.cs'))))</_FrameworkContentPipelineTasksHashes>
         <_FrameworkContentPipelineTasksHashes>$(_FrameworkContentPipelineTasksHashes)$([MSBuild]::StableStringHash($([System.IO.File]::ReadAllText('$(_FrameworkContentPipelineTasksDir)_TryRestoreFromContentCache.cs'))))</_FrameworkContentPipelineTasksHashes>
         <_FrameworkContentPipelineTasksHashes>$(_FrameworkContentPipelineTasksHashes)$([MSBuild]::StableStringHash($([System.IO.File]::ReadAllText('$(_FrameworkContentPipelineTasksDir)_TryRestoreFromContentGroupCache.cs'))))</_FrameworkContentPipelineTasksHashes>
         <_FrameworkContentPipelineTasksHashes>$(_FrameworkContentPipelineTasksHashes)$([MSBuild]::StableStringHash($([System.IO.File]::ReadAllText('$(_FrameworkContentPipelineTasksDir)_WriteSettingsStamps.cs'))))</_FrameworkContentPipelineTasksHashes>
@@ -88,6 +89,7 @@
         <_ContentPipelineTasksSource Include="$(_FrameworkContentPipelineTasksDir)_ResolveProcessorCommand.cs" />
         <_ContentPipelineTasksSource Include="$(_FrameworkContentPipelineTasksDir)_SaveToContentCache.cs" />
         <_ContentPipelineTasksSource Include="$(_FrameworkContentPipelineTasksDir)_SaveToContentGroupCache.cs" />
+        <_ContentPipelineTasksSource Include="$(_FrameworkContentPipelineTasksDir)_StripScriptComments.cs" />
         <_ContentPipelineTasksSource Include="$(_FrameworkContentPipelineTasksDir)_TryRestoreFromContentCache.cs" />
         <_ContentPipelineTasksSource Include="$(_FrameworkContentPipelineTasksDir)_TryRestoreFromContentGroupCache.cs" />
         <_ContentPipelineTasksSource Include="$(_FrameworkContentPipelineTasksDir)_WriteSettingsStamps.cs" />
