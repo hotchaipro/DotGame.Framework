@@ -282,8 +282,11 @@ public sealed class _GenerateWebPage : Task
                 continue;
             }
 
-            // The file itself, an atlas's or font's numbered pages, and a shader's stages
-            var name = new Regex("^" + Regex.Escape(Path.GetFileName(stem)) + @"(_\d+)?(\.[^.]+)+$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+            // The file itself, an atlas's or font's numbered pages, and a shader's stages: the
+            // stem, then a page number, a stage, and the one extension. Not another item whose name
+            // carries the stem and a dot, as a language's variant of a font does (base.ru beside
+            // base, which a localized asset loads in its place)
+            var name = new Regex("^" + Regex.Escape(Path.GetFileName(stem)) + @"(_\d+)?(\.(vert|frag))?\.[^.]+$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
             foreach (string file in Directory.EnumerateFiles(directory))
             {
                 if (name.IsMatch(Path.GetFileName(file)))

@@ -145,7 +145,7 @@ public sealed class WebPageTaskTests
     public void Preload_FindsAStemsFileAndPages_AndNotItsNeighbours()
     {
         using var directory = new TestDirectory();
-        WriteContent(directory, "Fonts/base.spritefont", "Fonts/base_0.webp", "Fonts/base_1.webp", "Fonts/baseline.spritefont", "Shaders/glow.frag.glsl");
+        WriteContent(directory, "Fonts/base.spritefont", "Fonts/base_0.webp", "Fonts/base_1.webp", "Fonts/baseline.spritefont", "Fonts/base.ru.spritefont", "Fonts/base.ru_0.webp", "Shaders/glow.frag.glsl");
 
         string page = Generate(directory, preload: ["wwwroot\\Content\\Fonts\\base", "wwwroot\\Content\\Shaders\\glow"]);
 
@@ -154,6 +154,7 @@ public sealed class WebPageTaskTests
         Assert.Contains("href=\"Content/Fonts/base_1#[.{fingerprint}].webp\"", page, StringComparison.Ordinal);
         Assert.Contains("href=\"Content/Shaders/glow.frag#[.{fingerprint}].glsl\"", page, StringComparison.Ordinal);
         Assert.DoesNotContain("baseline", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("base.ru", page, StringComparison.Ordinal);
     }
 
     [Fact]
