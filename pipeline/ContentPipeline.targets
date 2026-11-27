@@ -794,6 +794,12 @@
                       Text="The LaunchScreen item needs a Background color, as in Background=&quot;#5ba7dd&quot;." />
         <Error Condition="'%(_LaunchScreenItem.Branding)' != '' and !Exists('%(_LaunchScreenItem.Branding)')"
                       Text="The LaunchScreen branding '%(_LaunchScreenItem.Branding)' wasn't found." />
+        <Error Condition="'%(_LaunchScreenItem.Compression)' != '' and '%(_LaunchScreenItem.Compression)' != 'Lossless' and '%(_LaunchScreenItem.Compression)' != 'Lossy'"
+                      Text="The LaunchScreen item has Compression='%(_LaunchScreenItem.Compression)'. Expected 'Lossless' or 'Lossy'." />
+        <Error Condition="'%(_LaunchScreenItem.LossyQuality)' != '' and '%(_LaunchScreenItem.Compression)' != 'Lossy'"
+                      Text="The LaunchScreen item sets LossyQuality without Compression='Lossy'." />
+        <Error Condition="'%(_LaunchScreenItem.LossyQuality)' != '' and !$([System.Text.RegularExpressions.Regex]::IsMatch('%(_LaunchScreenItem.LossyQuality)', '^([1-9]|10)$'))"
+                      Text="The LaunchScreen item has LossyQuality='%(_LaunchScreenItem.LossyQuality)'. Expected 1 to 10." />
         <Warning Condition="'$(LaunchScreenPlatform)' == ''"
                           Text="This platform's content pipeline doesn't make launch screens (its targets don't set LaunchScreenPlatform), so the LaunchScreen item is skipped." />
         <PropertyGroup>
@@ -807,6 +813,13 @@
             <_LaunchScreenDescription Condition="'$(_LaunchScreenBranding)' != ''">$(_LaunchScreenDescription) --branding &quot;$(_LaunchScreenBranding)&quot;</_LaunchScreenDescription>
             <_LaunchScreenDescription Condition="'$(_LaunchScreenBrandingWidth)' != ''">$(_LaunchScreenDescription) --branding-width $(_LaunchScreenBrandingWidth)</_LaunchScreenDescription>
 
+            <!-- How the web's images are encoded: the launch-screen command's alone (launch-page
+                      takes the description, not these) -->
+            <_LaunchScreenCompression>@(_LaunchScreenItem->'%(Compression)')</_LaunchScreenCompression>
+            <_LaunchScreenLossyQuality>@(_LaunchScreenItem->'%(LossyQuality)')</_LaunchScreenLossyQuality>
+            <_LaunchScreenEncoding Condition="'$(_LaunchScreenCompression)' != ''">--compression $(_LaunchScreenCompression)</_LaunchScreenEncoding>
+            <_LaunchScreenEncoding Condition="'$(_LaunchScreenLossyQuality)' != ''">$(_LaunchScreenEncoding) --lossy-quality $(_LaunchScreenLossyQuality)</_LaunchScreenEncoding>
+
             <!-- Android and iOS make resources; desktop and the web, content -->
             <_LaunchScreenOutputDir>$(LaunchScreenResourceDir)</_LaunchScreenOutputDir>
             <_LaunchScreenOutputDir Condition="'$(LaunchScreenImageExtension)' != ''">$(ContentOutputDir)$(_LaunchScreenContentRelativeDir)</_LaunchScreenOutputDir>
@@ -814,7 +827,7 @@
         <MakeDir Directories="$(ContentIntermediateDir)" />
         <!-- The settings, as an input to BuildLaunchScreen: changing the item remakes it -->
         <WriteLinesToFile File="$(_LaunchScreenStampFile)"
-                                            Lines="$(LaunchScreenPlatform) $(_LaunchScreenDescription) $(LaunchScreenPlatformArguments)"
+                                            Lines="$(LaunchScreenPlatform) $(_LaunchScreenDescription) $(_LaunchScreenEncoding) $(LaunchScreenPlatformArguments)"
                                             Overwrite="true"
                                             WriteOnlyWhenDifferent="true" />
     </Target>
@@ -830,7 +843,7 @@
                     Condition="'@(LaunchScreen)' != '' and '$(LaunchScreenPlatform)' != ''">
         <!-- Remade whole, so nothing from an earlier description (a removed branding) is left -->
         <RemoveDir Directories="$(_LaunchScreenOutputDir)" />
-        <Exec Command="$(ContentPipelineBuildCommand) launch-screen --platform $(LaunchScreenPlatform) $(_LaunchScreenDescription) $(LaunchScreenPlatformArguments) --output-dir &quot;$(_LaunchScreenOutputDir.TrimEnd('\').TrimEnd('/'))&quot; --cs-output &quot;$(LaunchScreenCsFile)&quot;" />
+        <Exec Command="$(ContentPipelineBuildCommand) launch-screen --platform $(LaunchScreenPlatform) $(_LaunchScreenDescription) $(_LaunchScreenEncoding) $(LaunchScreenPlatformArguments) --output-dir &quot;$(_LaunchScreenOutputDir.TrimEnd('\').TrimEnd('/'))&quot; --cs-output &quot;$(LaunchScreenCsFile)&quot;" />
         <Message Text="LaunchScreen: $(LaunchScreenPlatform) -> $(_LaunchScreenOutputDir)" Importance="high" />
     </Target>
 

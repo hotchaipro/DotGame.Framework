@@ -153,7 +153,7 @@ One item describes it, and the build makes each platform's form (Android theme a
 <LaunchScreen Include="Content\LaunchScreen\logo.png" Background="#181c28" LogoSize="140" />
 ```
 
-- `Background` is required. `LogoSize` is the logo's longer side in dp (points on iOS, CSS pixels on the web; default 160). `Branding` adds an optional mark near the bottom, in a 200 x 80 dp area; `BrandingWidth` narrows it.
+- `Background` is required. `LogoSize` is the logo's longer side in dp (points on iOS, CSS pixels on the web; default 160). `Branding` adds an optional mark near the bottom, in a 200 x 80 dp area; `BrandingWidth` narrows it. On the web the images are lossless WebP; `Compression="Lossy"` (with `LossyQuality`, 1 to 10, 8 by default) makes them a fraction of the size, alpha kept exact, as they download before the first frame.
 - One `LaunchScreen` item per game. The build warns `LSC0002` when the logo doesn't fit the circle Android 12's splash screen shows, with the largest `LogoSize` that fits.
 - It fades out once the first frame is on screen; games write no launch code. Clear the first frames to the same color to continue the look.
 

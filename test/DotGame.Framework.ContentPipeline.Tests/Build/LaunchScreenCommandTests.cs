@@ -91,4 +91,47 @@ public sealed class LaunchScreenCommandTests
 
         Assert.NotEqual(first[0], larger[0]);
     }
+
+    // Builds the web's launch screen images, and returns the logo's and branding's WebP chunk
+    // kinds ("VP8L" lossless; "VP8X" for lossy with alpha)
+    private static (string Logo, string Branding) BuildWeb(TestDirectory directory, string output, params string[] encoding)
+    {
+        string logoFile = directory.Path_(output + "-logo.png");
+        string brandingFile = directory.Path_(output + "-branding.png");
+        Logo().SavePng(logoFile);
+        Branding().SavePng(brandingFile);
+        string outputDir = directory.Path_(output);
+
+        LaunchScreenCommand.Run(CommandLineOptions.Parse([
+            "--platform", "webgl",
+            "--logo", logoFile,
+            "--logo-size", "64",
+            "--branding", brandingFile,
+            "--background", "#faecd2",
+            "--output-dir", outputDir,
+            .. encoding,
+        ]));
+
+        static string Kind(string file) => System.Text.Encoding.ASCII.GetString(File.ReadAllBytes(file), 12, 4);
+        return (Kind(Path.Combine(outputDir, "logo.webp")), Kind(Path.Combine(outputDir, "branding.webp")));
+    }
+
+    [Fact]
+    public void Web_ImagesAreLossless_ByDefault()
+    {
+        using var directory = new TestDirectory();
+
+        Assert.Equal(("VP8L", "VP8L"), BuildWeb(directory, "a"));
+    }
+
+    [Fact]
+    public void Web_LossyCompression_EncodesBothImagesLossy()
+    {
+        using var directory = new TestDirectory();
+
+        var (logo, branding) = BuildWeb(directory, "a", "--compression", "Lossy", "--lossy-quality", "9");
+
+        Assert.NotEqual("VP8L", logo);
+        Assert.NotEqual("VP8L", branding);
+    }
 }
