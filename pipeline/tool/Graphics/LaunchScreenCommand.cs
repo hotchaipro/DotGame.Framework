@@ -24,7 +24,8 @@ namespace DotGame.Framework.ContentPipeline.BuildTool.Graphics;
 /// <para>
 /// <c>launch-screen</c> writes the images and resources: Android's drawables (per density), its
 /// splash screen theme (API 31 and later) and window background (earlier); iOS's launch
-/// storyboard and its @1x to @3x images; desktop's KTX2 textures; the web's WebP images. Then
+/// storyboard and its @1x to @3x images; desktop's KTX2 textures; the web's WebP images (lossless,
+/// or lossy with <c>--compression Lossy</c> and <c>--lossy-quality</c>). Then
 /// <c>launch-page</c> writes the web page and app manifest from their templates, once the
 /// images' fingerprinted URLs are known.
 /// </para>
@@ -61,6 +62,10 @@ internal static class LaunchScreenCommand
         string outputDir = options.GetPath("output-dir");
         string? csOutput = options.GetString("cs-output") is { Length: > 0 } cs ? ContentPaths.Normalize(cs) : null;
         string themeParent = options.GetString("android-theme-parent", "@android:style/Theme");
+
+        // The web's images: lossless by default, or lossy at a quality of 1 to 10 (as textures)
+        string compression = options.GetChoice("compression", "Lossless", "Lossless", "Lossy");
+        int lossyQuality = options.GetInt32("lossy-quality", 8, 1, 10);
         options.ThrowIfUnrecognized();
 
         Directory.CreateDirectory(outputDir);
@@ -83,10 +88,10 @@ internal static class LaunchScreenCommand
                 break;
 
             case "webgl":
-                WriteWebP(screen.Logo, screen.LogoSize, Path.Combine(outputDir, "logo.webp"));
+                WriteWebP(screen.Logo, screen.LogoSize, Path.Combine(outputDir, "logo.webp"), compression, lossyQuality);
                 if (screen.Branding is not null)
                 {
-                    WriteWebP(screen.Branding, screen.BrandingSize, Path.Combine(outputDir, "branding.webp"));
+                    WriteWebP(screen.Branding, screen.BrandingSize, Path.Combine(outputDir, "branding.webp"), compression, lossyQuality);
                 }
                 break;
         }
@@ -474,12 +479,13 @@ internal static class LaunchScreenCommand
         ContentPaths.RetryWhileLocked(() => Ktx2Format.WriteRgba8(path, scaled, true), $"Writing '{path}'");
     }
 
-    private static void WriteWebP(RgbaImage image, (float Width, float Height) size, string path)
+    private static void WriteWebP(RgbaImage image, (float Width, float Height) size, string path, string compression, int lossyQuality)
     {
-        // Straight alpha: the page draws it as an image, not a texture
+        // Straight alpha: the page draws it as an image, not a texture. Lossy keeps the alpha
+        // lossless, so the logo's edge stays as drawn.
         var scaled = Scaled(image, size, ImageScale);
         ContentPaths.CreateParentDirectory(path);
-        TextureCommand.EncodeWebP(scaled, path, "Lossless", 10);
+        TextureCommand.EncodeWebP(scaled, path, compression, (compression == "Lossy") ? lossyQuality : 10);
     }
 
     // The page: the template's two placeholders filled in. '<!-- launch-screen:head -->' goes at

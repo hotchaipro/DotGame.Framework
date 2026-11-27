@@ -30,6 +30,8 @@ One `LaunchScreen` item, in the project that builds the game's content:
 | `LogoSize` | The logo's longer side in device-independent pixels; 160 by default |
 | `Branding` | Optional: a mark centered in a 200 x 80 area whose bottom is 60 above the screen's |
 | `BrandingWidth` | Optional: the branding's width, within that area; by default as large as fits |
+| `Compression` | Optional: how the web's images are encoded, `Lossless` (the default) or `Lossy`. Lossy keeps the alpha exact and is often a fifth of the size: the images download with the runtime, before the first frame |
+| `LossyQuality` | Optional, with `Compression="Lossy"`: 1 to 10, as textures take it; 8 by default |
 
 Sizes are device-independent pixels everywhere: dp on Android, points on iOS, CSS pixels on the web,
 logical pixels on the desktop. The layout is Android 12's splash screen, the one platform whose layout
