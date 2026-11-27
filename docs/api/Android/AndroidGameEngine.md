@@ -10,6 +10,10 @@ public sealed class AndroidGameEngine
 
 Runs a game on Android, drawing with OpenGL ES on a thread of its own.
 
+## Remarks
+
+A game runs once in a process, and the process lives as long as the game: when the activity finishes, the process ends once the game has stopped. When Android destroys the activity without ending the process and makes another of its class in its place (a configuration change the activity doesn't handle, such as the language, or the system reclaiming it in the background, as Don't keep activities does), the app starts again in a new process, from inside the new activity's `base.OnCreate`, before its own code goes on to make a game: the game starts afresh from what it saved, as after Android ended the process, so no one-time setup of the game's runs twice in one process.
+
 ## Example
 
 ```csharp
@@ -19,27 +23,18 @@ SetContentView(hostView);
 new AndroidGameEngine(this, hostView).Run(new MyGame());
 ```
 
-## Nested types
-
-| Type | Summary |
-|---|---|
-| [Options](AndroidGameEngine-Options.md) | How the engine starts. |
-
 ## Constructors
 
 ```csharp
-public AndroidGameEngine(Activity activity, ViewGroup hostView, Options? options = null)
+public AndroidGameEngine(Activity activity, ViewGroup hostView)
 ```
 
-Types: [`AndroidGameEngine.Options`](AndroidGameEngine-Options.md)
-
-Makes an engine for an activity, with these options or the defaults; it does nothing until [`Run`](#run).
+Makes an engine for an activity; it does nothing until [`Run`](#run).
 
 | Parameter | |
 |---|---|
 | `activity` | The host activity. Can be any `Activity` subclass — no special base class is required. |
 | `hostView` | The `ViewGroup` that will host the surface view. The caller is responsible for creating the view hierarchy and calling `Activity.SetContentView` before or after this call. |
-| `options` | Engine configuration. |
 
 ## Fields
 
@@ -59,7 +54,7 @@ public const global::Android.Content.PM.ConfigChanges ConfigurationChanges =
         | global::Android.Content.PM.ConfigChanges.Navigation;
 ```
 
-The configuration changes a game's activity handles itself, for its `Activity` attribute's `ConfigurationChanges`. Any it leaves out, such as a foldable opening, or the player changing the font size or dark mode, make Android destroy and recreate the activity, restarting the game.
+The configuration changes a game's activity handles itself, for its `Activity` attribute's `ConfigurationChanges`. Any it leaves out, such as a foldable opening, or the player changing the font size or dark mode, make Android destroy and recreate the activity, which starts the app again in a new process (see the remarks on `AndroidGameEngine`).
 
 ## Methods
 
@@ -77,4 +72,4 @@ Starts the game, drawing into a surface view added to the host view. It returns 
 |---|---|
 | `game` | The game instance to run. |
 
-**Throws `InvalidOperationException`:** The engine is already running a game.
+**Throws `InvalidOperationException`:** The engine is already running a game, or a game has run in this process already (a game runs once in a process: see the remarks on `AndroidGameEngine`).

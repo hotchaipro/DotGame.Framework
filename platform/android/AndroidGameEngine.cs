@@ -33,6 +33,16 @@ namespace DotGame.Framework.Android;
 /// new AndroidGameEngine(this, hostView).Run(new MyGame());
 /// </code>
 /// </example>
+/// <remarks>
+/// A game runs once in a process, and the process lives as long as the game: when the activity
+/// finishes, the process ends once the game has stopped. When Android destroys the activity without
+/// ending the process and makes another of its class in its place (a configuration change the
+/// activity doesn't handle, such as the language, or the system reclaiming it in the background, as
+/// Don't keep activities does), the app starts again in a new process, from inside the new
+/// activity's <c>base.OnCreate</c>, before its own code goes on to make a game: the game starts
+/// afresh from what it saved, as after Android ended the process, so no one-time setup of the
+/// game's runs twice in one process.
+/// </remarks>
 #pragma warning disable CA1001 // Its only disposable field is a Java object the runtime manages
 public sealed class AndroidGameEngine
 #pragma warning restore CA1001
@@ -40,7 +50,8 @@ public sealed class AndroidGameEngine
     /// <summary>
     /// The configuration changes a game's activity handles itself, for its <c>Activity</c> attribute's
     /// <c>ConfigurationChanges</c>. Any it leaves out, such as a foldable opening, or the player changing
-    /// the font size or dark mode, make Android destroy and recreate the activity, restarting the game.
+    /// the font size or dark mode, make Android destroy and recreate the activity, which starts the app
+    /// again in a new process (see the remarks on <see cref="AndroidGameEngine"/>).
     /// </summary>
     public const global::Android.Content.PM.ConfigChanges ConfigurationChanges =
         global::Android.Content.PM.ConfigChanges.Orientation
@@ -107,23 +118,6 @@ public sealed class AndroidGameEngine
     /// </summary>
     internal bool IsRenderLoopActive => this._renderLoopActive && !(this._renderThread?.IsPresentationSuspended ?? false);
 
-    /// <summary>How the engine starts.</summary>
-    public sealed class Options
-    {
-        /// <summary>Makes the options, with their defaults.</summary>
-        public Options()
-        {
-        }
-
-        /// <summary>
-        /// Whether the process ends when the activity finishes, once the game has stopped. Off by
-        /// default, as an app may have more to it than the game, and the next launch in the same
-        /// process starts the game afresh. A game whose own static state doesn't survive that can
-        /// turn it on.
-        /// </summary>
-        public bool ExitProcessOnFinish { get; set; }
-    }
-
     /// <summary>
     /// What the options asked for, until the render thread chooses its EGL config, then what it got.
     /// </summary>
@@ -132,11 +126,8 @@ public sealed class AndroidGameEngine
     // The engine running in this process, if any
     private static AndroidGameEngine? s_current;
 
-    private readonly Options _options;
-
     /// <summary>
-    /// Makes an engine for an activity, with these options or the defaults; it does nothing until
-    /// <see cref="Run"/>.
+    /// Makes an engine for an activity; it does nothing until <see cref="Run"/>.
     /// </summary>
     /// <param name="activity">
     /// The host activity. Can be any <see cref="Activity"/> subclass —
@@ -147,21 +138,18 @@ public sealed class AndroidGameEngine
     /// The caller is responsible for creating the view hierarchy and calling
     /// <see cref="Activity.SetContentView(View)"/> before or after this call.
     /// </param>
-    /// <param name="options">Engine configuration.</param>
     public AndroidGameEngine(
         Activity activity,
-        ViewGroup hostView,
-        Options? options = null)
+        ViewGroup hostView)
     {
         ArgumentNullException.ThrowIfNull(activity);
         ArgumentNullException.ThrowIfNull(hostView);
 
         this._activity = activity;
         this._hostView = hostView;
-        this._options = options ?? new Options();
     }
 
-    // Set when a genuine finish should end the process, which the render thread does after the
+    // Set when the activity finishes, so the process ends, which the render thread does after the
     // game has stopped
     private volatile bool _isExitRequested;
 
@@ -174,7 +162,7 @@ public sealed class AndroidGameEngine
         if (this._isExitRequested)
         {
             // Through Trace first, as KillProcess is abrupt
-            Trace.Write(0xadddbc2b, "[AndroidGameEngine] The game has stopped: ending the process, as ExitProcessOnFinish asks");
+            Trace.Write(0xadddbc2b, "[AndroidGameEngine] The activity finished and the game has stopped: ending the process");
 
             global::Android.OS.Process.KillProcess(global::Android.OS.Process.MyPid());
         }
@@ -197,7 +185,10 @@ public sealed class AndroidGameEngine
     /// game runs on the engine's own thread, which is the game thread.
     /// </summary>
     /// <param name="game">The game instance to run.</param>
-    /// <exception cref="InvalidOperationException">The engine is already running a game.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// The engine is already running a game, or a game has run in this process already (a game runs
+    /// once in a process: see the remarks on <see cref="AndroidGameEngine"/>).
+    /// </exception>
     public void Run(
         Game game)
     {
@@ -211,9 +202,15 @@ public sealed class AndroidGameEngine
         var activity = this._activity;
         var hostView = this._hostView;
 
-        // NOTE: Android destroys the activity being replaced only once this one is showing, and this
-        // one's game thread can't start until the old one's has ended, so the old one stops now
-        Interlocked.Exchange(ref s_current, this)?.Stop();
+        // An activity of the game's class made after this one, in the same process, starts the app
+        // again in a new one (RecreateCallbacks), so a second game here is a second activity class
+        if (Interlocked.CompareExchange(ref s_current, this, null) is not null)
+        {
+            throw new InvalidOperationException("A game has run in this process already: a game runs once in a process.");
+        }
+
+        activity.Application!.RegisterActivityLifecycleCallbacks(
+            new RecreateCallbacks(activity));
 
         // The engine takes ownership of the game instance immediately so the
         // render thread (which drives the whole lifecycle) has it available
@@ -817,12 +814,11 @@ public sealed class AndroidGameEngine
                 Trace.Write(0x4b9e0a17, FormattableString.Invariant(
                     $"[AndroidGameEngine] OnActivityDestroyed: stopping engine (IsFinishing={isFinishing}, IsChangingConfigurations={isChangingConfigurations})"));
 
-                // Before the stop, which the render thread runs next. Not on a configuration-change
-                // recreate (it must survive as the same process), nor on a system background-destroy
-                // (killing there would force a cold start every time the player returns).
-                this._engine._isExitRequested = isFinishing && !isChangingConfigurations
-                    && this._engine._options.ExitProcessOnFinish
-                    && (s_current == this._engine);
+                // Before the stop, which the render thread runs next: a finished activity ends the
+                // process once the game has stopped. Not when Android will make another in its place
+                // (a recreate, or the system reclaiming it in the background): the process waits for
+                // it, and RecreateCallbacks starts the app again in a new one when it comes
+                this._engine._isExitRequested = isFinishing && !isChangingConfigurations;
 
                 try
                 {
@@ -870,6 +866,73 @@ public sealed class AndroidGameEngine
     }
 
     // The system's reports of its memory, from TRIM_MEMORY_RUNNING_LOW up
+    /// <summary>
+    /// For the life of the process: an activity of the game's class made after the game's own, in its
+    /// place, starts the app again in a new process (see the remarks on
+    /// <see cref="AndroidGameEngine"/>). Android calls this from inside the new activity's
+    /// <c>base.OnCreate</c>, before its own code goes on to make a game. Activities of other classes
+    /// (an ad's, a purchase's, sharing's, a sign-in's) come and go over the game untouched.
+    /// </summary>
+    private sealed class RecreateCallbacks(
+        Activity gameActivity) : Java.Lang.Object, Application.IActivityLifecycleCallbacks
+    {
+        private readonly string? _gameActivityClass = gameActivity.ComponentName?.ClassName;
+
+        public void OnActivityCreated(
+            Activity activity,
+            global::Android.OS.Bundle? savedInstanceState)
+        {
+            if ((activity == gameActivity)
+                || (this._gameActivityClass is null)
+                || (activity.ComponentName?.ClassName != this._gameActivityClass))
+            {
+                return;
+            }
+
+            Trace.Write(0x5e2b7c31, "[AndroidGameEngine] Another of the game's activity in the process: starting the app again in a new one");
+
+            // The launch intent, not the activity's, whose link the game had already
+            var intent = activity.PackageManager?.GetLaunchIntentForPackage(activity.PackageName!)
+                ?? new Intent(activity, activity.Class);
+            intent.AddFlags(ActivityFlags.NewTask | ActivityFlags.ClearTask);
+            activity.StartActivity(intent);
+
+            activity.Finish();
+            global::Android.OS.Process.KillProcess(global::Android.OS.Process.MyPid());
+        }
+
+        public void OnActivityStarted(
+            Activity activity)
+        {
+        }
+
+        public void OnActivityResumed(
+            Activity activity)
+        {
+        }
+
+        public void OnActivityPaused(
+            Activity activity)
+        {
+        }
+
+        public void OnActivityStopped(
+            Activity activity)
+        {
+        }
+
+        public void OnActivitySaveInstanceState(
+            Activity activity,
+            global::Android.OS.Bundle outState)
+        {
+        }
+
+        public void OnActivityDestroyed(
+            Activity activity)
+        {
+        }
+    }
+
     private sealed class MemoryCallbacks(
         GameHost host) : Java.Lang.Object, IComponentCallbacks2
     {

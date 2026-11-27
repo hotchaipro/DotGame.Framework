@@ -9,5 +9,5 @@ Every public type and member, generated from the source. For how to use them, st
 | [Framework](Framework/README.md) | The core of every game: lifecycle, graphics, audio, input, content and time. | 64 |
 | [Desktop](Desktop/README.md) | Runs a game on Windows, macOS and Linux. | 5 |
 | [Web](Web/README.md) | Runs a game in a browser. | 2 |
-| [Android](Android/README.md) | Runs a game on Android. | 2 |
+| [Android](Android/README.md) | Runs a game on Android. | 1 |
 | [iOS](iOS/README.md) | Runs a game on iOS. | 3 |
