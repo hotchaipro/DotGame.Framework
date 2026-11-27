@@ -113,7 +113,7 @@ public class MainActivity : Activity
 - `ConfigurationChanges = AndroidGameEngine.ConfigurationChanges` stops rotation and similar changes from restarting the activity.
 - The theme is the generated `DotGame.LaunchScreen` (or one derived from it). `LaunchScreenAndroidThemeParent` sets what it derives from (default `@android:style/Theme`; the template uses `@android:style/Theme.DeviceDefault.NoActionBar`).
 - The template's Release settings: `AndroidStripNativeLibraries=true`. Not `RunAOTCompilation`: Android runs on CoreCLR since .NET 11, which refuses it (XA1044). Version with `ApplicationVersion` (an integer) and `ApplicationDisplayVersion`.
-- `AndroidGameEngine.Options.ExitProcessOnFinish` is the one engine option.
+- A game runs once in a process, and the process lives as long as the game: finishing the activity ends it, and an activity Android makes in the old one's place (a change it doesn't handle, such as the language, or Don't keep activities) starts the app again in a new process from inside its `base.OnCreate`, before the activity makes a game. So one-time setup in `OnCreate` after `base.OnCreate` runs once in a process; `Run` throws if a game has run in the process already. The engine has no options.
 
 ## iOS
 

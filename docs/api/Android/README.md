@@ -11,5 +11,4 @@ Runs a game on Android.
 | Type | Kind | Summary |
 |---|---|---|
 | [AndroidGameEngine](AndroidGameEngine.md) | class | Runs a game on Android, drawing with OpenGL ES on a thread of its own. |
-| [AndroidGameEngine.Options](AndroidGameEngine-Options.md) | class | How the engine starts. |
 

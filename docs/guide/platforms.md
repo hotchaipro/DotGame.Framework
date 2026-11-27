@@ -295,6 +295,13 @@ public class MainActivity : Activity
 }
 ```
 
+A game runs once in a process, and the process lives as long as the game. Finishing the activity
+ends the process once the game has stopped. When Android destroys the activity without ending the
+process and makes another in its place (a configuration change the activity doesn't handle, such as
+the language, or the system reclaiming it, as Don't keep activities does), the app starts again in a
+new process from inside the new activity's `base.OnCreate`, before it makes a game. So anything set
+up once in `OnCreate` after `base.OnCreate` runs once in a process, as on the other platforms.
+
 ## iOS
 
 iOS needs a Mac to build. The game runs in a window that a scene delegate makes. The
