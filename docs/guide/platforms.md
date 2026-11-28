@@ -220,8 +220,11 @@ the host compresses anything itself.
 A host that isn't set up sends a `.br` copy without the header, and the game stops with an error saying
 so, naming the file. That's on purpose: a game that only loads slowly would look like a slow framework.
 A copy that arrives in another encoding, or decoded, is fine: a CDN (Cloudflare does) sends a browser or
-proxy that doesn't accept Brotli the file itself, plain or as gzip, and the page takes it as it is (a
-WebAssembly file with no encoding is checked for WebAssembly's magic number). Set the host up:
+proxy that doesn't accept Brotli the file itself, plain or as gzip, and a proxy or virus scanner on the
+player's side may decode some copies and not others. The page judges each copy that arrives with no
+encoding by its own bytes: a WebAssembly file by WebAssembly's magic number, a text file (such as a shader
+or JSON) by reading as text, and any other file, while still in doubt, by fetching the file itself once
+and comparing. Only a copy that turns out to be Brotli bytes stops the game. Set the host up:
 
 | Host | Setup |
 |---|---|

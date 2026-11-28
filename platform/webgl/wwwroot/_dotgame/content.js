@@ -215,7 +215,7 @@ function reportHostSetup(message) {
  * and turned out to be the module: the host (a CDN) decodes copies for this browser, so any other
  * copy that arrives with no encoding is the file too. A CDN may send a small file plain and a large
  * one as gzip to the same browser (Cloudflare does). Brotli bytes have no signature to check them
- * by, so only a wasm can show it.
+ * by, so it takes a wasm, or a copy that turned out to be the same as its file fetched again.
  */
 let sendsDecodedCopies = false;
 
@@ -265,6 +265,91 @@ function watchWasmModule(body, message) {
     }));
 }
 
+// The extensions of files that are text, which a copy that arrives with no encoding can be checked
+// by: a file that reads as text is the file, since compressed bytes all but never do (they make
+// control characters and invalid UTF-8 at random), and one that doesn't is fetched again to tell
+const TextExtensions = new Set(['.glsl', '.json', '.txt', '.xml', '.csv', '.svg', '.css', '.html']);
+
+const strictUtf8 = new TextDecoder('utf-8', { fatal: true });
+
+/**
+ * Whether bytes are text: valid UTF-8 with no control characters but tab, line feed, form feed and
+ * carriage return. An empty file is text: no Brotli stream is empty.
+ */
+export function readsAsText(bytes) {
+    let text;
+    try {
+        text = strictUtf8.decode(bytes);
+    } catch {
+        return false;
+    }
+    for (let i = 0; i < text.length; i += 1) {
+        const c = text.charCodeAt(i);
+        if (((c < 0x20) && (c !== 0x09) && (c !== 0x0a) && (c !== 0x0c) && (c !== 0x0d)) || (c === 0x7f)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+function sameBytes(a, b) {
+    if (a.length !== b.length) {
+        return false;
+    }
+    for (let i = 0; i < a.length; i += 1) {
+        if (a[i] !== b[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
+ * The bytes of a file whose precompressed copy arrived with no encoding (not a wasm, see
+ * readPrecompressed): the copy, when its own bytes show it's the file, or when a wasm has already
+ * shown the host decodes copies for this browser; otherwise the file fetched once more as itself,
+ * when the copy turns out to be the same. Fails with `message` when the copy is the host's Brotli
+ * bytes, or the file can't be fetched to tell.
+ */
+async function readPlainCopy(response, originalUrl, message) {
+    const copy = new Uint8Array(await response.arrayBuffer());
+    const isText = TextExtensions.has(extensionOf(originalUrl));
+    if (isText && readsAsText(copy)) {
+        trace(0x3e9b52c4, `copy with no encoding is the file (text): ${originalUrl}`);
+        return copy;
+    }
+    // NOTE: A text file that doesn't read as text isn't the file, whatever a wasm showed
+    if (sendsDecodedCopies && !isText) {
+        return copy;
+    }
+
+    const file = await fetchWithRetry(originalUrl, undefined,
+        async (refetched) => refetched.ok ? new Uint8Array(await refetched.arrayBuffer()) : null);
+    if (file && sameBytes(copy, file)) {
+        trace(0x3e9b52c5, `copy with no encoding is the file (fetched again to compare): ${originalUrl}`);
+        sendsDecodedCopies = true;
+        return copy;
+    }
+
+    trace(0x3e9b52c6, `copy with no encoding isn't the file (${file ? `${copy.length} bytes, the file ${file.length}` : 'the file couldn\'t be fetched'}): ${originalUrl}`);
+    reportHostSetup(message);
+    throw new Error(message);
+}
+
+// A body that's the bytes a promise resolves to, or fails with its error
+function bodyOf(bytes) {
+    return new ReadableStream({
+        async start(controller) {
+            try {
+                controller.enqueue(await bytes);
+                controller.close();
+            } catch (error) {
+                controller.error(error);
+            }
+        },
+    });
+}
+
 /**
  * The response for a file fetched as its precompressed copy, as if it were the file: decoded, with
  * the file's own type, so a wasm still compiles as it arrives. A Brotli copy the host sent without
@@ -275,9 +360,15 @@ function watchWasmModule(body, message) {
  * A Brotli copy can also arrive decoded, or in another encoding the browser decodes: a CDN sends
  * a browser (or a proxy) that doesn't accept Brotli the file itself, plain or as gzip, from the
  * copy (Cloudflare does). Any other encoding the response names is that, so the body is the file.
- * One that names none is either: a wasm is checked for WebAssembly's magic number; any other file
- * is the file once a wasm has arrived in an encoding other than br as the module (the runtime's
- * wasm loads before any content), and is taken as the host's Brotli bytes otherwise.
+ * One that names none is either, and each such file is judged by its own bytes: a wasm is checked
+ * for WebAssembly's magic number; a text file is the file when it reads as text (readsAsText);
+ * any other file is the file once a wasm (or a copy fetched again, below) has shown that the host
+ * decodes copies for this browser.
+ * A file still in doubt is fetched once more as itself, the file the copy was made from, which the
+ * browser decodes from whatever the host sends: the copy was the file when the two are the same,
+ * and the host's Brotli bytes, sent without the header, when they differ. A proxy or a scanner on
+ * the player's side can decode some copies and not others, so a wasm that arrived as Brotli says
+ * nothing about the next file.
  */
 export function readPrecompressed(response, originalUrl) {
     if (!response.ok) {
@@ -294,9 +385,8 @@ export function readPrecompressed(response, originalUrl) {
                 + 'to true, to fetch gzip copies the page decodes itself, more slowly.';
             if (extensionOf(originalUrl) === '.wasm') {
                 body = watchWasmModule(body, message);
-            } else if (!sendsDecodedCopies) {
-                reportHostSetup(message);
-                throw new Error(message);
+            } else {
+                body = bodyOf(readPlainCopy(response, originalUrl, message));
             }
         } else if ((encoding !== 'br') && (extensionOf(originalUrl) === '.wasm')) {
             body = watchWasmModule(body, null);
